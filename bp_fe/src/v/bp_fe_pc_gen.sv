@@ -30,9 +30,10 @@ module bp_fe_pc_gen
    , input                                           redirect_br_nonbr_i
 
    , output logic [vaddr_width_p-1:0]                next_pc_o
-   , input                                           next_pc_yumi_i
+   , input                                           if1_we_i
 
    , output logic                                    ovr_o
+   , input                                           if2_we_i
 
    , input [instr_width_gp-1:0]                      fetch_i
    , input                                           fetch_instr_v_i
@@ -127,7 +128,7 @@ module bp_fe_pc_gen
   // BTB
   ///////////////////////////
   logic btb_w_yumi_lo, btb_init_done_lo; 
-  wire btb_r_v_li = next_pc_yumi_i;
+  wire btb_r_v_li = if1_we_i;
   wire btb_w_v_li = (redirect_br_v_i & redirect_br_taken_i)
     | (redirect_br_v_i & redirect_br_nonbr_i & redirect_br_metadata_fwd.src_btb)
     | (attaboy_v_i & attaboy_taken_i & (~attaboy_br_metadata_fwd.src_btb | attaboy_br_metadata_fwd.src_ras));
@@ -163,7 +164,7 @@ module bp_fe_pc_gen
   ///////////////////////////
   // BHT
   ///////////////////////////
-  wire bht_r_v_li = next_pc_yumi_i;
+  wire bht_r_v_li = if1_we_i;
   wire [vaddr_width_p-1:0] bht_r_addr_li = next_pc;
   wire [ghist_width_p-1:0] bht_r_ghist_li = ghistory_n;
   wire bht_w_v_li =
@@ -206,10 +207,12 @@ module bp_fe_pc_gen
   logic [vaddr_width_p-1:0] pc_if1_r;
   bp_fe_branch_metadata_fwd_s metadata_if1_r;
   logic pred_if1_r, taken_if1_r;
-  bsg_dff
+  bsg_dff_reset_en
    #(.width_p(2+branch_metadata_fwd_width_p+vaddr_width_p))
    if1_stage_reg
     (.clk_i(clk_i)
+     ,.reset_i(reset_i)
+     ,.en_i(if1_we_i)
 
      ,.data_i({next_pred, next_taken, next_metadata, next_pc})
      ,.data_o({pred_if1_r, taken_if1_r, metadata_if1_r, pc_if1_r})
@@ -244,10 +247,12 @@ module bp_fe_pc_gen
   logic [vaddr_width_p-1:0] pc_if2_r;
   logic pred_if2_r, taken_if2_r;
   bp_fe_branch_metadata_fwd_s metadata_if2_r;
-  bsg_dff
+  bsg_dff_reset_en
    #(.width_p(2+branch_metadata_fwd_width_p+vaddr_width_p))
    if2_stage_reg
     (.clk_i(clk_i)
+     ,.reset_i(reset_i)
+     ,.en_i(if2_we_i)
 
      ,.data_i({pred_if1_r, taken_if1_r, metadata_if1, pc_if1_r})
      ,.data_o({pred_if2_r, taken_if2_r, metadata_if2_r, pc_if2_r})
@@ -290,6 +295,10 @@ module bp_fe_pc_gen
      );
 
   // Override calculations
+  // TODO: ras_valid_lo can degrade performance in some edge cases. However,
+  //   the fix for this (recovering the ras stack on misprediction) is the
+  //   same amount of work as creating a multiple element ras. So, let's
+  //   punt this for now
   wire btb_miss_ras = pc_if1_r != ras_tgt_lo;
   wire btb_miss_br  = pc_if1_r != br_tgt_lo;
   assign ovr_ret    = btb_miss_ras & fetch_instr_return_v_li & ras_valid_lo;

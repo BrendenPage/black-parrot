@@ -84,17 +84,14 @@ module bp_fe_nonsynth_pc_gen_tracer
     , input [`BSG_SAFE_CLOG2(num_core_p)-1:0] mhartid_i
 
    // FE state
-   , input state_stall_i
+   , input state_resume_i
    , input state_wait_i
 
    // FE state causes
-   , input queue_miss_i
-   , input icache_miss_i
+   , input icache_spec_i
    , input access_fault_i
    , input page_fault_i
    , input itlb_miss_i
-
-   // TODO: I$ rollback, fence
 
    // IF0
    , input src_redirect_i
@@ -102,13 +99,9 @@ module bp_fe_nonsynth_pc_gen_tracer
    , input src_override_branch_i
    , input src_btb_taken_branch_i
 
-   // IF1
-   , input                     if1_top_v_i
-   , input [vaddr_width_p-1:0] if1_pc_i
-
     // IF2
-   , input                     if2_top_v_i
-   , input [vaddr_width_p-1:0] if2_pc_i
+   , input                     fetch_v_i
+   , input [vaddr_width_p-1:0] fetch_pc_i
 
    // TODO: indicate output to FE queue
     );
@@ -126,32 +119,31 @@ module bp_fe_nonsynth_pc_gen_tracer
      ,.count_o(cycle_cnt)
      );
 
-  bp_fe_pc_gen_src_e pc_src_if1_n, pc_src_if1_r;
-  bp_fe_pc_gen_src_e pc_src_if2_n, pc_src_if2_r;
-  bsg_dff_reset
-   #(.width_p($bits(bp_fe_pc_gen_src_e)*2))
+  bp_fe_pc_gen_src_e pc_src_next, pc_src_fetch;
+  logic [$bits(bp_fe_pc_gen_src_e)-1:0] pc_src_fetch_r;
+  bsg_dff_chain
+   #(.width_p($bits(bp_fe_pc_gen_src_e)), .num_stages_p(2))
    pc_src_reg
     (.clk_i(clk_i)
-     ,.reset_i(reset_i | freeze_i)
 
-     ,.data_i({pc_src_if1_n, pc_src_if2_n})
-     ,.data_o({pc_src_if1_r, pc_src_if2_r})
+     ,.data_i(pc_src_next)
+     ,.data_o(pc_src_fetch_r)
     );
-  assign pc_src_if2_n = pc_src_if1_r;
+  assign pc_src_fetch = bp_fe_pc_gen_src_e'(pc_src_fetch_r);
 
   always_comb
     begin
       // TODO: deduplicate "if" chain from bp_fe_pc_gen.sv
       if (src_redirect_i)
-        pc_src_if1_n = e_pc_src_redirect;
+        pc_src_next = e_pc_src_redirect;
       else if (src_override_ras_i)
-        pc_src_if1_n = e_pc_src_override_ras;
+        pc_src_next = e_pc_src_override_ras;
       else if (src_override_branch_i)
-        pc_src_if1_n = e_pc_src_override_branch;
+        pc_src_next = e_pc_src_override_branch;
       else if (src_btb_taken_branch_i)
-        pc_src_if1_n = e_pc_src_btb_taken_branch;
+        pc_src_next = e_pc_src_btb_taken_branch;
       else
-        pc_src_if1_n = e_pc_src_last_fetch_plus_four;
+        pc_src_next = e_pc_src_last_fetch_plus_four;
     end
 
   function string render_addr_with_validity(logic [vaddr_width_p-1:0] addr, logic valid);
@@ -171,30 +163,28 @@ module bp_fe_nonsynth_pc_gen_tracer
       $fwrite(file, "%12s | %7s, %12s, %20s, %5s, %s\n", "time", "cycle", "IF2 PC", "IF2 PC src", "state", "events");
     end
 
-  string trimmed_pc_src_if2_name;
+  string trimmed_pc_src_fetch_name;
   always_ff @(negedge clk_i)
     if (!reset_i && !freeze_i)
     begin
-      trimmed_pc_src_if2_name = pc_src_if2_r.name().substr(pc_src_enum_name_prefix_length_lp, pc_src_if2_r.name().len()-1);
+      trimmed_pc_src_fetch_name = pc_src_fetch.name().substr(pc_src_enum_name_prefix_length_lp, pc_src_fetch.name().len()-1);
 
       $fwrite
         (file
         ,"%12t | %07d, %12s, %20s, %5s, "
         ,$time
         ,cycle_cnt
-        ,render_addr_with_validity(if2_pc_i, if2_top_v_i)
-        ,trimmed_pc_src_if2_name
-        ,state_stall_i ? "stall" : (state_wait_i ? "wait" : "run"));
+        ,render_addr_with_validity(fetch_pc_i, fetch_v_i)
+        ,trimmed_pc_src_fetch_name
+        ,state_resume_i ? "resume" : (state_wait_i ? "wait" : "run"));
 
-      if (queue_miss_i)
-        $fwrite(file, "queue miss; ");
-      if (icache_miss_i)
+      if (icache_spec_i & fetch_v_i)
         $fwrite(file, "i$ miss; ");
-      if (access_fault_i)
+      if (access_fault_i & fetch_v_i)
         $fwrite(file, "access fault; ");
-      if (page_fault_i)
+      if (page_fault_i & fetch_v_i)
         $fwrite(file, "page fault; ");
-      if (itlb_miss_i)
+      if (itlb_miss_i & fetch_v_i)
         $fwrite(file, "itlb miss; ");
 
       $fwrite(file, "\n");
