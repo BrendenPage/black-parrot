@@ -58,6 +58,8 @@ module bp_me_cache_slice
 
   `declare_bsg_cache_pkt_s(daddr_width_p, l2_data_width_p);
   bsg_cache_pkt_s [l2_banks_p-1:0] cache_pkt_li;
+
+  parameter prefetch_buffer_depth_p = 32;
   logic [l2_banks_p-1:0] cache_pkt_v_li, cache_pkt_ready_and_lo;
   logic [l2_banks_p-1:0][l2_data_width_p-1:0] cache_data_lo;
   logic [l2_banks_p-1:0] cache_data_v_lo, cache_data_yumi_li;
@@ -89,8 +91,56 @@ module bp_me_cache_slice
      ,.cache_data_yumi_o(cache_data_yumi_li)
      );
 
+  logic [daddr_width_p-1:0] prefetch_addr, best_offset_v_o;
+
+  bp_me_best_offset_generator
+   #(.daddr_width_p(daddr_width_p))
+   prefetch_address_generator
+    (.clk_i(clk_i)
+     ,.reset_i(reset_i)
+     ,.daddr_i()
+     ,.miss_v_i()
+     ,.ready_and_o()
+     ,.prefetching_active_o()
+     ,.prefetch_addr_o(prefetch_addr)
+     ,.v_o(best_offset_v_o)
+    );
+
+  bsg_fifo_1r1w_large
+   #(.width_p(daddr_width_p)
+    ,.els_p(20)
+    )
+   prefetch_dma_buffer
+    (.clk_i(clk_i)
+     ,.reset_i(reset_i)
+     ,.data_i(prefetch_addr)
+     ,.v_i(best_offset_v_o)
+     ,.ready_o()
+     ,.v_o()
+     ,.data_o()
+     ,.yumi_i()
+    );
+
   for (genvar i = 0; i < l2_banks_p; i++)
     begin : bank
+      bsg_cam_1r1w
+       #(.els_p(prefetch_buffer_depth_p)
+         ,.tag_width_p(daddr_width_p - $log2(prefetch_buffer_depth_p))
+         ,.data_width_p(l2_data_width_p)
+        )
+       prefetch_buffer
+        (.clk_i(clk_i)
+         ,.reset_i(reset_i)
+         ,.w_v_i()
+         ,.w_nuke_i()
+         ,.w_tag_i()
+         ,.w_data_i()
+         ,.r_v_i()
+         ,.r_tag_i()
+         ,.r_data_o()
+         ,.r_v_o()
+        );
+
       bsg_cache
        #(.addr_width_p(daddr_width_p)
          ,.data_width_p(l2_data_width_p)
