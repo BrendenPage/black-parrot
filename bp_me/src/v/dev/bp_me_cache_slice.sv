@@ -58,7 +58,7 @@ module bp_me_cache_slice
 
   `declare_bsg_cache_pkt_s(daddr_width_p, l2_data_width_p);
   bsg_cache_pkt_s [l2_banks_p-1:0] cache_pkt_li;
-
+  parameter lg_offsets_p = 6;
   parameter prefetch_buffer_depth_p = 32;
   logic [l2_banks_p-1:0] cache_pkt_v_li, cache_pkt_ready_and_lo;
   logic [l2_banks_p-1:0][l2_data_width_p-1:0] cache_data_lo;
@@ -91,19 +91,21 @@ module bp_me_cache_slice
      ,.cache_data_yumi_o(cache_data_yumi_li)
      );
 
-  logic [daddr_width_p-1:0] prefetch_addr, best_offset_v_o;
-
+  logic [daddr_width_p-1:0] best_offset_v_lo;
+  logic [lg_offsets_p-1:0] offset;
+  // Generates stride distance for prefetch
   bp_me_best_offset_generator
-   #(.daddr_width_p(daddr_width_p))
-   prefetch_address_generator
+   #(.daddr_width_p(daddr_width_p)
+     ,.lg_offsets_p(lg_offsets_p))
+   prefetch_offset_generator
     (.clk_i(clk_i)
      ,.reset_i(reset_i)
      ,.daddr_i()
-     ,.miss_v_i()
+     ,.v_i()
+     ,.yumi_o()
      ,.ready_and_o()
-     ,.prefetching_active_o()
-     ,.prefetch_addr_o(prefetch_addr)
-     ,.v_o(best_offset_v_o)
+     ,.offset_o(offset)
+     ,.v_o(best_offset_v_lo)
     );
 
   bsg_fifo_1r1w_large
@@ -123,6 +125,10 @@ module bp_me_cache_slice
 
   for (genvar i = 0; i < l2_banks_p; i++)
     begin : bank
+      // Buffer that holds prefetched values and checks to see if a request for a held
+      // value is send to the main cache bank. If the request is sent it waits for bsg_cache
+      // to miss and then handles the DMA access as if it is returning from DMA to give the cache
+      // the memory requested.
       bsg_cam_1r1w
        #(.els_p(prefetch_buffer_depth_p)
          ,.tag_width_p(daddr_width_p - $log2(prefetch_buffer_depth_p))
@@ -140,6 +146,39 @@ module bp_me_cache_slice
          ,.r_data_o()
          ,.r_v_o()
         );
+
+      // Stores the raw addresses sent to the bsg_cache
+      // If more than 4 accumulate, just drop incoming.
+      bsg_fifo_1r1w_small
+       #(.width_p(daddr_width_p)
+         ,.els_p(4)
+        )
+       incoming_address_buffer
+        (.clk_i(clk_i)
+         ,.reset_i(reset_i)
+         ,.v_i(cache_pkt_v_li[i])
+         ,.ready_o()
+         ,.data_i(cache_pkt_li[i].addr)
+         ,.v_o()
+         ,.data_o()
+         ,.yumi_i()
+        )
+
+      // Keeps track of the addresses this unit is currently prefetching
+      bsg_fifo_1r1w_small
+       #(.width_p(daddr_width_p)
+         ,.els_p(4)
+        )
+       incoming_address_buffer
+        (.clk_i(clk_i)
+         ,.reset_i(reset_i)
+         ,.v_i()
+         ,.ready_o()
+         ,.data_i(cache_pkt_li[i].addr)
+         ,.v_o()
+         ,.data_o()
+         ,.yumi_i()
+        )
 
       bsg_cache
        #(.addr_width_p(daddr_width_p)
