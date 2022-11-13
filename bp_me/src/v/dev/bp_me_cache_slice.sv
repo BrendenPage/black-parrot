@@ -106,8 +106,9 @@ module bp_me_cache_slice
      ,.ready_and_o()
      ,.offset_o(offset)
      ,.v_o(best_offset_v_lo)
-    );
+     );
 
+  // Stores miss addresses waiting to be processed by best offset generator
   bsg_fifo_1r1w_large
    #(.width_p(daddr_width_p)
     ,.els_p(20)
@@ -115,40 +116,98 @@ module bp_me_cache_slice
    prefetch_dma_buffer
     (.clk_i(clk_i)
      ,.reset_i(reset_i)
-     ,.data_i(prefetch_addr)
+     ,.data_i()
      ,.v_i(best_offset_v_o)
      ,.ready_o()
      ,.v_o()
      ,.data_o()
      ,.yumi_i()
-    );
+     );
 
   for (genvar i = 0; i < l2_banks_p; i++)
     begin : bank
-      // Buffer that holds prefetched values and checks to see if a request for a held
-      // value is send to the main cache bank. If the request is sent it waits for bsg_cache
-      // to miss and then handles the DMA access as if it is returning from DMA to give the cache
-      // the memory requested.
-      bsg_cam_1r1w
-       #(.els_p(prefetch_buffer_depth_p)
-         ,.tag_width_p(daddr_width_p - $log2(prefetch_buffer_depth_p))
-         ,.data_width_p(l2_data_width_p)
+    // change widths
+      logic [safe_els_lp-1:0][prefetch_buffer_depth_p-1:0] tag_r_match_lo;
+      logic [safe_els_lp-1:0][prefetch_buffer_depth_p-1:0] repl_way_lo;
+      logic [safe_els_lp-1:0][prefetch_buffer_depth_p-1:0] tag_empty_lo;
+      // Cam tag array that keeps track of which fifo specific cache blocks are
+      // held in and which fifo to place new prefetched blocks into.
+      bsg_cam_1r1w_tag_array
+       #(.width_p(daddr_width_p) // Shrink this when we know how big the relevant portion of the address is
+         ,.els_p(prefetch_buffer_depth_p)
         )
-       prefetch_buffer
+       prefetched_data_tracker
         (.clk_i(clk_i)
          ,.reset_i(reset_i)
-         ,.w_v_i()
-         ,.w_nuke_i()
-         ,.w_tag_i()
-         ,.w_data_i()
-         ,.r_v_i()
-         ,.r_tag_i()
-         ,.r_data_o()
-         ,.r_v_o()
-        );
 
-      // Stores the raw addresses sent to the bsg_cache
-      // If more than 4 accumulate, just drop incoming.
+         ,.w_v_i(repl_way_lo[i])
+         ,.w_set_not_clear_i(prefetch_v[i] & dma_data_v_i[i])
+         ,.w_tag_i(prefetch_addr[i])
+         ,.w_empty_o(tag_empty_lo[i])
+
+         ,.r_v_i(r_v_i)
+         ,.r_tag_i(r_tag_i)
+         ,.r_match_o(tag_r_match_lo[i]) // One hot scheme
+         );
+
+      // The replacement scheme for the CAM
+      bsg_cam_1r1w_replacement
+      #(.els_p(prefetch_buffer_depth_p))
+       prefetcher_cam_replacement
+        (.clk_i(clk_i)
+         ,.reset_i(reset_i)
+
+         ,.read_v_i(tag_r_match_lo[i])
+
+         ,.alloc_v_i(prefetch_v[i] & dma_data_v_i[i])
+         ,.alloc_empty_i(tag_empty_lo[i])
+         ,.alloc_v_o(repl_way_lo[i])
+         );
+
+      logic [][] mux_one_hot_data;
+      for (genvar j = 0; j < prefetch_buffer_depth_p; j++) 
+      begin : prefetch_buffer
+        logic [][prefetch_buffer_depth_p-1:0] block_buffer_v_r;
+        wire block_write_valid = repl_way_lo[i][j] & prefetch_v[i] & dma_data_v_i[i];
+        wire unused_ready;
+        bsg_fifo_1r1w_small
+         #(.width_p(l2_fill_width_p)
+           ,.els_p((l2_block_size_in_words_p * l2_data_width_p)*(l2_data_width_p/l2_fill_width_p) + 1) // make this nicer, needs to be # fill width per block + 1
+          )
+         prefetched_block_buffer
+          (.clk_i(clk_i)
+           ,.reset_i(reset_i)
+           ,.v_i(block_write_valid)
+           ,.ready_o(unused_ready)
+           ,.data_i(dma_pkt_v_o[i])
+           ,.v_o(block_buffer_v_n[i][j])
+           ,.data_o(mux_one_hot_data[i][j])
+           ,.yumi_i((block_write_valid & block_buffer_v_r[i][j]) |
+                    (tag_r_match_lo[i][j] & dma_pkt_v_lo[i]))
+           )
+
+        bsg_dff_reset_en
+         #(.width_p(1))
+         block_write_valid_dff
+          (.clk_i(clk_i)
+           ,.reset_i(reset_i)
+           ,.en_i(~block_write_valid)
+           ,.data_i(block_buffer_v_n[i][j])
+           ,.data_o(block_buffer_v_r[i][j])
+          )
+      end
+      wire [][] mux_one_hot_data_lo;
+      bsg_mux_one_hot
+       #(.width_p(l2_fill_width_p)
+         ,.els_p(prefetch_buffer_depth_p)
+        )
+       prefetch_data_mux
+        (.data_i(mux_one_hot_data[i])
+         ,.sel_one_hot_i(tag_r_match_lo[i])
+         ,.data_o(mux_one_hot_data_lo[i])
+        )
+
+      // Stores misses reported by the bsg_cache to be sent to best offset gen
       bsg_fifo_1r1w_small
        #(.width_p(daddr_width_p)
          ,.els_p(4)
@@ -156,29 +215,30 @@ module bp_me_cache_slice
        incoming_address_buffer
         (.clk_i(clk_i)
          ,.reset_i(reset_i)
-         ,.v_i(cache_pkt_v_li[i])
+         ,.v_i(dma_pkt_o[i].addr)
          ,.ready_o()
-         ,.data_i(cache_pkt_li[i].addr)
+         ,.data_i(dma_pkt_v_o[i])
          ,.v_o()
          ,.data_o()
          ,.yumi_i()
-        )
+         )
 
-      // Keeps track of the addresses this unit is currently prefetching
+      // Sends prefetch requests to DMA when unit is not busy, drops oldest
+      // if overflown.
       bsg_fifo_1r1w_small
        #(.width_p(daddr_width_p)
-         ,.els_p(4)
+         ,.els_p(8)
         )
-       incoming_address_buffer
+       prefetch_request_generator
         (.clk_i(clk_i)
          ,.reset_i(reset_i)
          ,.v_i()
          ,.ready_o()
          ,.data_i(cache_pkt_li[i].addr)
-         ,.v_o()
+         ,.v_o(prefetch_request_v[i])
          ,.data_o()
          ,.yumi_i()
-        )
+         )
 
       bsg_cache
        #(.addr_width_p(daddr_width_p)
@@ -211,12 +271,12 @@ module bp_me_cache_slice
          ,.yumi_i(cache_data_yumi_li[i])
 
          ,.dma_pkt_o(dma_pkt_o[i])
-         ,.dma_pkt_v_o(dma_pkt_v_o[i])
+         ,.dma_pkt_v_o(dma_pkt_v_lo[i])
          ,.dma_pkt_yumi_i(dma_pkt_ready_and_i[i] & dma_pkt_v_o[i])
 
          ,.dma_data_i(dma_data_i[i])
          ,.dma_data_v_i(dma_data_v_i[i])
-         ,.dma_data_ready_o(dma_data_ready_and_o[i])
+         ,.dma_data_ready_o(dma_data_ready_and_o[i]) // The cache's internal fifo is ready to accept data
 
          ,.dma_data_o(dma_data_o[i])
          ,.dma_data_v_o(dma_data_v_o[i])
@@ -224,7 +284,18 @@ module bp_me_cache_slice
 
          ,.v_we_o()
          );
+        assign dma_pkt_o = prefetch_v[i] ? prefetch_pkt[i]
+                                           : dma_pkt_lo[i];
+
+        assign dma_pkt_v_o[i] = (~(|{tag_r_match_lo[i]}) & dma_pkt_v_lo[i]) | 
+                                (prefetch_request_v[i] & ~page_bound_v[i]);
     end
+  // synopsis translate_off
+    always_ff (@negedge clk_i) begin
+      assert(&{prefetch_buffer.unused_ready} || reset_i)
+      else $error("Prefetch buffer overflown, should be cleared each access");
+    end
+  // synopsis translate_on
 
 endmodule
 
