@@ -58,9 +58,18 @@ module bp_me_cache_slice
   `declare_bsg_cache_dma_pkt_s(daddr_width_p);
 
   `declare_bsg_cache_pkt_s(daddr_width_p, l2_data_width_p);
-  bsg_cache_pkt_s [l2_banks_p-1:0] cache_pkt_li;
+  localparam cache_pkt_width_lp = `bsg_cache_pkt_width(daddr_width_p, l2_data_width_p);
+  localparam lg_data_mask_width_lp=`BSG_SAFE_CLOG2(l2_data_width_p>>3);
+  localparam lg_block_size_in_words_lp=`BSG_SAFE_CLOG2(l2_block_size_in_words_p);
+  localparam block_offset_width_lp=(l2_block_size_in_words_p > 1) ? lg_data_mask_width_lp+lg_block_size_in_words_lp : lg_data_mask_width_lp;
+  localparam lg_sets_lp = `BSG_SAFE_CLOG2(l2_en_p ? l2_sets_p : 2);
+  localparam tag_width_lp = (daddr_width_p-lg_sets_lp-block_offset_width_lp);
+  localparam dma_cache_pkt_width_lp = `bsg_cache_dma_pkt_width(daddr_width_p);
+
   parameter lg_offsets_p = 6;
   parameter prefetch_buffer_depth_p = 32;
+
+  bsg_cache_pkt_s [l2_banks_p-1:0] cache_pkt_li;
   logic [l2_banks_p-1:0] cache_pkt_v_li, cache_pkt_ready_and_lo;
   logic [l2_banks_p-1:0][l2_data_width_p-1:0] cache_data_lo;
   logic [l2_banks_p-1:0] cache_data_v_lo, cache_data_yumi_li, dma_pkt_v_lo;;
@@ -140,7 +149,8 @@ module bp_me_cache_slice
       wire  [l2_fill_width_p-1:0] mux_one_hot_data_lo;
       logic prefetch_request_v_lo;
       wire prefetch_req_gen_ready_lo;
-      wire [dma_pkt_width_lp-1:0] cache_pkt_li_interm;
+      bsg_cache_pkt_s cache_pkt_li_interm;
+      bsg_cache_dma_pkt_s cache_pkt_li_interm_dma;
       bsg_cache_dma_pkt_s cache_pkt_li_r;
 
       // Keeps track of if there is an incomplete but active prefetch operation.
@@ -259,16 +269,16 @@ module bp_me_cache_slice
 
       logic cache_pkt_v_li_interm, cache_pkt_v_li_r;
       bsg_dff_reset
-       #(.width_p(l2_banks_p))
+       #(.width_p(1))
        first_valid_dff
         (.clk_i(clk_i)
          ,.reset_i(reset_i)
-         ,.data_i(cache_pkt_v_li & decoded_pkt.ld_op)
+         ,.data_i(cache_pkt_v_li[i] & decoded_pkt.ld_op)
          ,.data_o(cache_pkt_v_li_interm)
         );
 
       bsg_dff_reset
-        #(.width_p(l2_banks_p))
+        #(.width_p(1))
         second_valid_dff
          (.clk_i(clk_i)
           ,.reset_i(reset_i)
@@ -277,7 +287,7 @@ module bp_me_cache_slice
          );
 
       bsg_dff_reset
-       #(.width_p(dma_pkt_width_lp))
+       #(.width_p(cache_pkt_width_lp))
        first_pkt_stall
         (.clk_i(clk_i)
          ,.reset_i(reset_i)
@@ -285,12 +295,21 @@ module bp_me_cache_slice
          ,.data_o(cache_pkt_li_interm)
         );
 
+      // Translate cache packet to dma packet
+      wire addr_index = cache_pkt_li_interm.addr[block_offset_width_lp+:lg_sets_lp];
+      wire addr_tag = cache_pkt_li_interm.addr[block_offset_width_lp+lg_sets_lp+:tag_width_lp];
+      assign cache_pkt_li_interm_dma.addr = {addr_tag,
+                                             addr_index,
+                                             {(block_offset_width_lp){1'b0}}
+                                            };
+      assign cache_pkt_li_interm_dma.write_not_read = 1'b0;
+
       bsg_dff_reset
-        #(.width_p(l2_banks_p))
+        #(.width_p(dma_cache_pkt_width_lp))
         second_pkt_stall
          (.clk_i(clk_i)
           ,.reset_i(reset_i)
-          ,.data_i(cache_pkt_li_interm)
+          ,.data_i(cache_pkt_li_interm_dma)
           ,.data_o(cache_pkt_li_r)
          );
       bsg_fifo_1r1w_small
@@ -300,7 +319,7 @@ module bp_me_cache_slice
        prefetch_request_generator
         (.clk_i(clk_i)
          ,.reset_i(reset_i)
-         ,.v_i(cache_pkt_v_li_r[i])
+         ,.v_i(cache_pkt_v_li_r)
          ,.ready_o(prefetch_req_gen_ready_lo)
          ,.data_i(cache_pkt_li_r)
          ,.v_o(prefetch_request_v_lo)
