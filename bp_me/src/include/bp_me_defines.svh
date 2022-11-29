@@ -5,6 +5,7 @@
 
   `include "bp_me_cce_defines.svh"
   `include "bp_me_cce_inst_defines.svh"
+  `include "bp_me_cache_slice_defines.svh"
 
 `endif
 
