@@ -3,7 +3,7 @@
  * bp_nonsynth_dram.v
  */
 
-`define dram_pkg bsg_dramsim3_lpddr3_8gb_x32_1600_pkg
+`define dram_pkg bsg_dramsim3_lpddr_2Gb_x16_pkg
 
 `include "bp_common_defines.svh"
 `include "bp_me_defines.svh"

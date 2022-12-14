@@ -75,7 +75,8 @@ module bp_me_cache_slice
   bsg_cache_pkt_s [l2_banks_p-1:0] cache_pkt_li;
   logic [l2_banks_p-1:0] cache_pkt_v_li, cache_pkt_ready_and_lo;
   logic [l2_banks_p-1:0][l2_data_width_p-1:0] cache_data_lo;
-  logic [l2_banks_p-1:0] cache_data_v_lo, cache_data_yumi_li, dma_pkt_v_lo;;
+  logic [l2_banks_p-1:0] cache_data_v_lo, cache_data_yumi_li, dma_pkt_v_lo, miss_rr_v_li, prefetch_rr_v_li;
+  logic [l2_banks_p-1:0][daddr_width_p-block_offset_width_lp-1:0] dma_miss_addr, prefetch_addr_to_gen;
 
   bp_me_cce_to_cache
    #(.bp_params_p(bp_params_p))
@@ -104,41 +105,67 @@ module bp_me_cache_slice
      ,.cache_data_yumi_o(cache_data_yumi_li)
      );
 
-  logic [daddr_width_p-1:0] best_offset_v_lo;
   logic [lg_offsets_p-1:0] offset;
+  logic miss_ready_and_lo, miss_v_li, prefetch_v_li;
+  logic [daddr_width_p - block_offset_width_lp-1:0] miss_addr_li, prefetch_addr_li;
+  logic [l2_banks_p-1:0] miss_rr_yumi_lo, prefetch_rr_yumi_lo;
   // Generates stride distance for prefetch
-  // bp_me_best_offset_generator
-  //  #(.daddr_width_p(daddr_width_p)
-  //    ,.lg_offsets_p(lg_offsets_p))
-  //  prefetch_offset_generator
-  //   (.clk_i(clk_i)
-  //    ,.reset_i(reset_i)
-  //    ,.daddr_i()
-  //    ,.v_i()
-  //    ,.yumi_o()
-  //    ,.ready_and_o()
-  //    ,.offset_o(offset)
-  //    ,.v_o(best_offset_v_lo)
-  //    );
+  bp_me_best_offset_generator
+   #(.addr_width_p(daddr_width_p - block_offset_width_lp)
+    ,.lg_offsets_p(lg_offsets_p))
+   prefetch_offset_generator
+    (.clk_i(clk_i)
+     ,.reset_i(reset_i)
+     ,.miss_addr_i(miss_addr_li)
+     ,.miss_v_i(miss_v_li)
+     ,.miss_ready_and_o(miss_ready_and_lo)
+     ,.prefetch_addr_i(prefetch_addr_li)
+     ,.prefetch_v_i(prefetch_v_li)
+     ,.offset_o(offset)
+     );
+  
+  bsg_round_robin_n_to_1
+   #(.width_p(daddr_width_p - block_offset_width_lp)
+    ,.num_in_p(l2_banks_p)
+    ,.strict_p(0)
+    )
+    miss_addr_bank_to_generator
+     (.clk_i(clk_i)
+     ,.reset_i(reset_i)
+     // From banks
+     ,.data_i(dma_miss_addr)
+     ,.v_i(miss_rr_v_li)
+     ,.yumi_o(miss_rr_yumi_lo)
+     // To gen
+     ,.v_o(miss_v_li)
+     ,.data_o(miss_addr_li)
+     ,.tag_o()
+     ,.yumi_i(miss_ready_and_lo & miss_v_li)
+     );
 
-  // // Stores miss addresses waiting to be processed by best offset generator
-  // bsg_fifo_1r1w_large
-  //  #(.width_p(daddr_width_p)
-  //   ,.els_p(20)
-  //   )
-  //  prefetch_dma_buffer
-  //   (.clk_i(clk_i)
-  //    ,.reset_i(reset_i)
-  //    ,.data_i()
-  //    ,.v_i(best_offset_v_o)
-  //    ,.ready_o()
-  //    ,.v_o()
-  //    ,.data_o()
-  //    ,.yumi_i()
-  //    );
+  bsg_round_robin_n_to_1
+   #(.width_p(daddr_width_p - block_offset_width_lp)
+    ,.num_in_p(l2_banks_p)
+    ,.strict_p(0)
+    )
+    prefetch_addr_bank_to_generator
+     (.clk_i(clk_i)
+     ,.reset_i(reset_i)
+     // From banks
+     ,.data_i(prefetch_addr_to_gen)
+     ,.v_i(prefetch_rr_v_li)
+     ,.yumi_o(prefetch_rr_yumi_lo)
+     // To gen
+     ,.v_o(prefetch_v_li)
+     ,.data_o(prefetch_addr_li)
+     ,.tag_o()
+     ,.yumi_i(|prefetch_rr_v_li)
+     );
+
   logic [daddr_width_p-1:0] stride;
   assign stride = '0;
   // assign stride = {{(daddr_width_p-7){1'b0}},7'b1000000};
+  // assign stride = {{(daddr_width_p-lg_offsets_p-block_offset_width_lp){1'b0}},{offset},{block_offset_width_lp{1'b0}}};
 
   bsg_cache_dma_pkt_s [l2_banks_p-1:0] prefetch_pre_stride, prefetch_pkt, prefetch_pkt_r, dma_pkt_lo;
 
@@ -187,6 +214,43 @@ module bp_me_cache_slice
       assign cache_buffer_hit_start_v = |tag_r_match_lo & dma_pkt_v_lo[i] & ~dma_pkt_lo[i].write_not_read;
       logic cache_buffer_hit_count_v;
 
+      logic miss_to_gen_v_li;
+
+      bsg_edge_detect
+        #(.falling_not_rising_p(0))
+        miss_flop
+        (.clk_i(clk_i)
+        ,.reset_i(reset_i)
+        ,.sig_i(dma_pkt_v_lo[i] & ~dma_pkt_lo[i].write_not_read)
+        ,.detect_o(miss_to_gen_v_li)
+        );
+
+      bsg_one_fifo
+        #(.width_p(daddr_width_p-block_offset_width_lp))
+        miss_to_gen_buff
+        (.clk_i(clk_i)
+        ,.reset_i(reset_i)
+        ,.ready_o()
+        ,.data_i(dma_pkt_lo[i].addr[daddr_width_p-1:block_offset_width_lp])
+        ,.v_i(miss_to_gen_v_li)
+        ,.v_o(miss_rr_v_li[i])
+        ,.data_o(dma_miss_addr[i])
+        ,.yumi_i(miss_rr_yumi_lo[i])
+        );
+      
+      bsg_one_fifo
+        #(.width_p(daddr_width_p-block_offset_width_lp))
+        prefetch_to_gen_buff
+        (.clk_i(clk_i)
+        ,.reset_i(reset_i)
+        ,.ready_o()
+        ,.data_i(dma_op_in_progress.addr)
+        ,.v_i(dma_op_in_progress_v & dma_op_in_progress.prefetch & dma_data_v_i[i] & fill_counter == 0)
+        ,.v_o(prefetch_rr_v_li[i])
+        ,.data_o(prefetch_addr_to_gen[i])
+        ,.yumi_i(prefetch_rr_yumi_lo[i])
+        );
+
       //TODO: Fix this
       bsg_dff_reset_set_clear
         #(.width_p(1)
@@ -200,8 +264,6 @@ module bp_me_cache_slice
         );
 
       assign cache_buffer_hit_v = cache_buffer_hit_start_v | cache_buffer_hit_count_v;
-      // assign cache_buffer_hit_v = |tag_r_match_lo & dma_pkt_v_lo[i] & ~dma_pkt_lo[i].write_not_read
-      //                             | (cache_buffer_hit_v & buffer_hit_count != MAX);
 
       assign prefetch_request_exists_v = |tag_r_match_lo & ~dma_pkt_v_lo[i] & prefetch_request_v_lo & ~page_bound_v;
 
@@ -211,9 +273,7 @@ module bp_me_cache_slice
 
       assign prefetch_request_unique_n = (~|tag_r_match_lo & ~dma_pkt_v_lo[i] & prefetch_request_v_lo & ~page_bound_v);
 
-      // assign prefetch_request_unique_v = prefetch_request_unique_r;
-
-      // Keeps track of the data being streamed in from DMA
+      // Keeps track of the data that is being funneled to the cache from buffers
       bsg_counter_clear_up
        #(.max_val_p(MAX)
         ,.init_val_p('0))
@@ -223,18 +283,6 @@ module bp_me_cache_slice
         ,.clear_i(buffer_hit_count == MAX)
         ,.up_i(cache_buffer_hit_v & dma_data_ready_and_lo)
         ,.count_o(buffer_hit_count));
-
-      // Prefetch request unique signals determine if the prefetch request has already been sent AND recieved
-      // bsg_dff_reset_set_clear
-      //   #(.width_p(1)
-      //    ,.clear_over_set_p(1))
-      //   prefetch_unique_dff
-      //   (.clk_i(clk_i)
-      //   ,.reset_i(reset_i)
-      //   ,.set_i(prefetch_request_unique_n)
-      //   ,.clear_i()
-      //   ,.data_o(prefetch_request_unique_r)
-      //   );
 
       bsg_fifo_1r1w_small
         #(.width_p(dma_cache_pkt_width_lp)
@@ -272,12 +320,22 @@ module bp_me_cache_slice
        queue_size_tracker
         (.clk_i(clk_i)
         ,.reset_i(reset_i)
-        ,.up_i((dma_pkt_v_o[i] & ~dma_pkt_o_spy.write_not_read))
+        ,.up_i((dma_pkt_v_o[i] & ~dma_pkt_o_spy.write_not_read & dma_pkt_ready_and_i[i]))
         ,.down_i(dma_fill_finished)
         ,.count_o(dma_queue_count_lo));
 
       assign queued_dma_pkt.prefetch = ~cache_dma_pkt_miss_v;
       assign queued_dma_pkt.addr = dma_pkt_o_spy.addr[daddr_width_p-1:block_offset_width_lp];
+
+      // synopsis translate_off
+      always_ff @(negedge clk_i) begin
+        // if (dma_pkt_v_lo[i]) begin
+        //   $display("\nAdjusted addr: %b", queued_dma_pkt.addr);
+        //   $display("Original addr: %b\n", dma_pkt_o_spy.addr);
+        // end
+        // if (dma_op_in_progress_v) $display("dma_op_in_progress.addr: %b", dma_op_in_progress.addr);
+      end
+      // synopsis translate_on
 
       bsg_fifo_1r1w_small
        #(.width_p($bits(bp_prefetch_pkt_s))
@@ -286,22 +344,13 @@ module bp_me_cache_slice
        dma_request_tracker
         (.clk_i(clk_i)
         ,.reset_i(reset_i)
-        ,.v_i(dma_pkt_v_o[i] & ~dma_pkt_o_spy.write_not_read)
+        ,.v_i(dma_pkt_v_o[i] & ~dma_pkt_o_spy.write_not_read & dma_pkt_ready_and_i[i])
         ,.ready_o(dma_request_buffer_ready_and_lo)
         ,.data_i(queued_dma_pkt)
         ,.v_o(dma_op_in_progress_v)
         ,.data_o(dma_op_in_progress)
         ,.yumi_i(dma_fill_finished)
         );
-      
-      //synopsis translate_off
-      always_ff @(negedge clk_i) begin
-        // $display("dma_pkt_v_o: %b, write_not_read: ", dma_pkt_v_o[i], dma_pkt_o_spy.write_not_read);
-        // $display("v_i: %b", dma_pkt_v_o[i] & ~dma_pkt_o_spy.write_not_read);
-        // $display("data_i: %x", queued_dma_pkt);
-        // $display("yumi_i: %b", dma_fill_finished);
-      end
-      //synopsis translate_on
 
       // Cam tag array that keeps track of which fifo specific cache blocks are
       // held in and which fifo to place new prefetched blocks into.
@@ -353,7 +402,6 @@ module bp_me_cache_slice
 
       assign safe_write_lo = repl_way_lo & ~read_in_progress;
 
-
       for (genvar j = 0; j < prefetch_buffer_depth_p; j++) 
       begin : prefetch_buffer
 
@@ -372,7 +420,6 @@ module bp_me_cache_slice
         logic yumi_count_up;
 
         assign yumi_count_up = (write_yumi | (read_in_progress[j] & dma_data_ready_and_lo & stash_v_lo));
-
 
         // Keep track of cache line clear progress for reads and writes
         bsg_counter_clear_up
@@ -442,8 +489,6 @@ module bp_me_cache_slice
           ,.data_o(empty_write_r)
           );
 
-        // assign read_in_progress[j] = (dma_pkt_v_lo[i] & ~dma_pkt_lo[i].write_not_read & tag_r_match_lo[j]) | (yumi_count_lo != MAX & read_in_progress[j]);
-
         assign read_yumi = read_in_progress[j] & dma_data_ready_and_lo & stash_v_lo;
 
         assign write_yumi = write_yumi_r | write_yumi_start;
@@ -454,17 +499,11 @@ module bp_me_cache_slice
 
         assign write_yumi_start = write_start & ~empty_write;
 
-        // assign write_yumi = dma_op_in_progress.prefetch & dma_op_in_progress_v & dma_data_v_i[i] & safe_write_lo[j] & ~empty_write | (write_yumi & yumi_count_lo != MAX);
-
-        // assign write_in_progress = safe_write_lo[j] & dma_op_in_progress.prefetch & dma_op_in_progress_v & dma_data_v_i[i] | (~dma_fill_finished & write_in_progress);
-
-        // assign empty_write = dma_op_in_progress.prefetch & dma_op_in_progress_v & dma_data_v_i[i] & safe_write_lo[j] & stash_v_lo | (empty_write & yumi_count_lo != MAX);
-
         assign mux_one_hot_v_li[j] = ~write_yumi & stash_v_lo;
 
         bsg_fifo_1r1w_small
          #(.width_p(l2_fill_width_p)
-          ,.els_p(MAX + 1) // make this nicer, needs to be # fill width per block + 1
+          ,.els_p(MAX + 1)
           )
          prefetched_block_buffer
           (.clk_i(clk_i)
@@ -480,10 +519,7 @@ module bp_me_cache_slice
           // buffer assertion block
           // synopsis translate_off
           always_ff @(negedge clk_i) begin
-            // if(read_in_progress)$display("VERY NICE");
-            // if(write_in_progress & dma_fill_finished) $display("SAFE WRITE COMPLETE ON CHANNEL: %d", j);
-            // if(empty_write & write_in_progress) $display("EMPTY WRITE HIGH WITH WRITE OPERATION");
-            // if (write_start) $display("RECIEVING PREFETCHED DATA FOR ADDR: %d", dma_op_in_progress.addr);
+
           end
           // synopsis translate_on
       end
@@ -507,21 +543,6 @@ module bp_me_cache_slice
          ,.data_o(mux_one_hot_v_lo)
         );
 
-      // Stores misses reported by the bsg_cache to be sent to best offset gen
-      // bsg_fifo_1r1w_small
-      //  #(.width_p(daddr_width_p)
-      //    ,.els_p(1)
-      //   )
-      //  incoming_address_buffer
-      //   (.clk_i(clk_i)
-      //    ,.reset_i(reset_i)
-      //    ,.v_i(dma_pkt_o[i].addr)
-      //    ,.ready_o()
-      //    ,.data_i(dma_pkt_v_o[i])
-      //    ,.v_o()
-      //    ,.data_o()
-      //    ,.yumi_i()
-      //    );
       // Sends prefetch requests to DMA when unit is not busy, drops oldest
       // if overflown.
       bsg_cache_dma_pkt_s cache_pkt_li_dma;
@@ -535,21 +556,32 @@ module bp_me_cache_slice
          ,.decode_o(decoded_pkt)
         );
 
-      logic cache_pkt_v_li_interm, cache_pkt_v_li_r;
+      logic cache_pkt_v_li_interm, cache_pkt_v_li_r, cache_pkt_v_li_interm_cont;
       bsg_dff_reset
        #(.width_p(1))
        first_valid_dff
         (.clk_i(clk_i)
          ,.reset_i(reset_i)
          ,.data_i(cache_pkt_v_li[i] & decoded_pkt.ld_op)
-         ,.data_o(cache_pkt_v_li_interm)
+         ,.data_o(cache_pkt_v_li_interm_cont)
         );
 
-      flop
+      bsg_edge_detect
+        #(.falling_not_rising_p(0))
+        cache_pkt_valid_twitch
+        (.clk_i(clk_i)
+        ,.reset_i(reset_i)
+        ,.sig_i(cache_pkt_v_li_interm_cont)
+        ,.detect_o(cache_pkt_v_li_interm)
+        );
+
+      bsg_dff_reset
+        #(.width_p(1))
         second_valid_dff
-        (.clk(clk_i)
-        ,.in(cache_pkt_v_li_interm & (i != 1))
-        ,.out(cache_pkt_v_li_r)
+        (.clk_i(clk_i)
+        ,.reset_i(reset_i)
+        ,.data_i(cache_pkt_v_li_interm)
+        ,.data_o(cache_pkt_v_li_r)
         );
 
       bsg_dff_reset
@@ -680,30 +712,139 @@ module bp_me_cache_slice
 
 endmodule
 
-module flop(clk, in, out);
-  input logic clk, in;
-  output logic out;
+module bp_me_best_offset_generator
+  #(parameter addr_width_p = 64
+    ,parameter lg_offsets_p = 6
+    ,parameter history_len_p = 8
+    ,parameter max_score_p = 10
+    ,parameter min_score_p = 1
+    ,parameter max_rounds_p = 20
+    ,parameter num_outstanding_misses_p = 2
+    ,parameter init_offset_p = 1
+  )
+  (input                          clk_i
+  , input                         reset_i
+  , input  [addr_width_p-1:0]     miss_addr_i
+  , input                         miss_v_i // Valid data is an address that missed in the cache
+  , input  [addr_width_p-1:0]     prefetch_addr_i
+  , input                         prefetch_v_i
+  , output                        miss_ready_and_o // Ready to recieve miss data
+  , output [lg_offsets_p-1:0]     offset_o
+  );
 
-  logic [1:0] ps;
-  logic [1:0] ns;
-  always_comb
-    case(ps)
-      2'b00: if (in == 1) ns = 2'b01;
-        else ns = 2'b00;
-      2'b01: if (in == 1) ns = 2'b10;
-        else ns = 2'b00;
-      2'b10: if(in == 1) ns = 2'b10;
-        else ns = 2'b00;
-      default: ns = 2'b00;
-    endcase
+  logic [lg_offsets_p-1:0] test_offset;
+  logic [lg_offsets_p-1:0] best_offset;
+  logic [2**lg_offsets_p-1:0][`BSG_SAFE_CLOG2(max_score_p)-1:0] offset_scores;
+  logic [addr_width_p-1:0] miss_addr_lo, test_addr;
+  logic processing_miss_v_lo, fifo_yumi_li;
+  logic [`BSG_SAFE_CLOG2(max_rounds_p)-1:0] round_counter;
+  logic [lg_offsets_p-1:0] current_best_offset;
+  logic [`BSG_SAFE_CLOG2(max_score_p)-1:0] current_best_offset_score;
+  logic [history_len_p-1:0] tag_empty_lo, tag_r_match_lo, repl_way_lo;
 
-  always_ff @(posedge clk)
-    if (ns == 2'b01) begin
-      out <= 1;
-      ps <= ns;
+  bsg_fifo_1r1w_small
+    #(.width_p(addr_width_p)
+    ,.els_p(num_outstanding_misses_p)
+    )
+    prefetched_block_buffer
+    (.clk_i(clk_i)
+    ,.reset_i(reset_i)
+    ,.v_i(miss_v_i)
+    ,.ready_o(miss_ready_and_o)
+    ,.data_i(miss_addr_i)
+    ,.v_o(processing_miss_v_lo)
+    ,.data_o(miss_addr_lo)
+    ,.yumi_i(fifo_yumi_li)
+    );
+
+  bsg_cam_1r1w_tag_array
+    #(.width_p(addr_width_p)
+     ,.els_p(history_len_p)
+     )
+    prefetched_data_tracker
+    (.clk_i(clk_i)
+    ,.reset_i(reset_i)
+
+    ,.w_v_i(repl_way_lo)
+    ,.w_set_not_clear_i(prefetch_v_i)
+    ,.w_tag_i(prefetch_addr_i)
+    ,.w_empty_o(tag_empty_lo)
+
+    ,.r_v_i(processing_miss_v_lo)
+    ,.r_tag_i(test_addr)
+    ,.r_match_o(tag_r_match_lo) // One hot scheme
+    );
+
+  bsg_cam_1r1w_replacement
+  #(.els_p(history_len_p))
+   prefetcher_cam_replacement
+    (.clk_i(clk_i)
+    ,.reset_i(reset_i)
+    // Only want to update LRU when its an actual read, but honestly this may do nothing
+    ,.read_v_i(tag_r_match_lo)
+
+    ,.alloc_v_i(prefetch_v_i)
+    ,.alloc_empty_i(tag_empty_lo)
+    ,.alloc_v_o(repl_way_lo)
+    );
+
+  bsg_adder_ripple_carry
+    #(.width_p(addr_width_p))
+    stride_adder
+    (.a_i(miss_addr_lo)
+    ,.b_i({{(addr_width_p-lg_offsets_p){'0}},{test_offset}})
+    ,.s_o(test_addr)
+    ,.c_o()
+    );
+
+  always_ff @(posedge clk_i) begin
+    if (reset_i) begin
+      test_offset <= 1;
+      best_offset <= 1;
+      offset_scores <= '0;
+      fifo_yumi_li <= '0;
+      current_best_offset <= '0;
+      current_best_offset_score <= '0;
+      round_counter <= '0;
+    end else if (test_offset == {(lg_offsets_p){1'b1}} & processing_miss_v_lo) begin
+      // We are on the last check of this round
+      test_offset = 1;
+      if (round_counter == max_rounds_p - 1) begin
+        best_offset <= current_best_offset_score > min_score_p ? current_best_offset : init_offset_p;
+        round_counter <= '0;
+        current_best_offset <= '0;
+        current_best_offset_score <= '0;
+      end else begin
+        round_counter <= round_counter + 1;
+      end
+    end else if (processing_miss_v_lo) begin
+      // We are in the middle of processing a miss, increment to next test value
+      test_offset <= test_offset + 1;
+      if (|tag_r_match_lo) begin
+        // We've found a hit in the previously prefetched data for this test address!
+        offset_scores[test_offset] <= offset_scores[test_offset] + 1;
+        if (offset_scores[test_offset] == max_score_p - 1) begin
+          // Weve hit the maximum value, reset and start the next round
+          offset_scores <= '0;
+          fifo_yumi_li <= 1'b1;
+          current_best_offset <= '0;
+          test_offset <= 1;
+          best_offset <= test_offset;
+          round_counter <= '0;
+          current_best_offset_score <= '0;
+        end else if (current_best_offset_score < (offset_scores[test_offset] + 1)) begin
+          // Update intermediate values
+          current_best_offset_score <= offset_scores[test_offset] + 1;
+          current_best_offset <= test_offset;
+        end
+      end
+    end else begin
+      // We wait idly while there are no misses to process
+      test_offset <= 1;
     end
-    else begin
-      out <= 0;
-      ps <= ns;
-    end
+    if (test_offset == {(lg_offsets_p){1'b1}}) fifo_yumi_li <= 1'b1;
+    else fifo_yumi_li <= 1'b0;
+  end
+
+  assign offset_o = best_offset;
 endmodule
