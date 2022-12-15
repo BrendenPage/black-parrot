@@ -78,6 +78,41 @@ module bp_me_cache_slice
   logic [l2_banks_p-1:0] cache_data_v_lo, cache_data_yumi_li, dma_pkt_v_lo, miss_rr_v_li, prefetch_rr_v_li;
   logic [l2_banks_p-1:0][daddr_width_p-block_offset_width_lp-1:0] dma_miss_addr, prefetch_addr_to_gen;
 
+  logic [1:0][`BSG_SAFE_CLOG2(2147483647)-1:0] miss_ctr, cache_ctr;
+  logic [`BSG_SAFE_CLOG2(2147483647)-1:0] miss_ctr_n, miss_ctr_r, cache_ctr_n, cache_ctr_r;
+
+  bsg_adder_ripple_carry
+    #(.width_p(`BSG_SAFE_CLOG2(2147483647)))
+    adr
+    (.a_i(miss_ctr[0])
+    ,.b_i(miss_ctr[1])
+    ,.s_o(miss_ctr_n)
+    ,.c_o());
+  bsg_adder_ripple_carry
+    #(.width_p(`BSG_SAFE_CLOG2(2147483647)))
+    adr_c
+    (.a_i(cache_ctr[0])
+    ,.b_i(cache_ctr[1])
+    ,.s_o(cache_ctr_n)
+    ,.c_o());
+  always_ff @(posedge clk_i) begin
+    if (reset_i) begin
+      miss_ctr_r <= '0;
+      cache_ctr_r <= '0;
+    end
+    else begin
+      miss_ctr_r <= miss_ctr_n;
+      cache_ctr_r <= cache_ctr_n;
+    end
+  end
+  // synopsis translate_off
+  always_ff @(negedge clk_i) begin
+    if (miss_ctr_r != miss_ctr_n) $display("miss_ctr: %d", miss_ctr_n);
+    if (cache_ctr_r != cache_ctr_n) $display("cache_ctr: %d", cache_ctr_n);
+  end
+
+  // synopsis translate_on
+
   bp_me_cce_to_cache
    #(.bp_params_p(bp_params_p))
    cce_to_cache
@@ -205,6 +240,28 @@ module bp_me_cache_slice
       logic next_prefetch_request_ready_lo;
       logic page_bound_v;
       logic [prefetch_buffer_depth_p-1:0] read_start;
+
+      bsg_counter_clear_up
+        #(.init_val_p(0)
+        ,.max_val_p(2147483647))
+        cache_total_ctr
+        (.clk_i(clk_i)
+        ,.reset_i(reset_i)
+        ,.clear_i('0)
+        ,.up_i(cache_data_yumi_li[i])
+        ,.count_o(cache_ctr[i])
+        );
+      
+      bsg_counter_clear_up
+        #(.init_val_p(0)
+        ,.max_val_p(2147483647))
+        cache_miss_ctr
+        (.clk_i(clk_i)
+        ,.reset_i(reset_i)
+        ,.clear_i('0)
+        ,.up_i(dma_pkt_v_o[i] & dma_pkt_v_lo[i] & ~cache_buffer_hit_v & dma_pkt_ready_and_i[i])
+        ,.count_o(miss_ctr[i])
+        );
 
       wire op_is_write = dma_pkt_v_lo[i] & dma_pkt_lo[i].write_not_read;
 
