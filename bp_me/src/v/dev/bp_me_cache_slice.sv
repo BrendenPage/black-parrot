@@ -69,7 +69,7 @@ module bp_me_cache_slice
   localparam tag_width_lp = (daddr_width_p-lg_sets_lp-block_offset_width_lp);
   localparam dma_cache_pkt_width_lp = `bsg_cache_dma_pkt_width(daddr_width_p);
   localparam MAX = `bp_cache_slice_fills_per_block(l2_block_size_in_words_p, l2_data_width_p, l2_fill_width_p);
-  localparam lg_offsets_p = 6;
+  localparam lg_offsets_p = 4;
 localparam prefetch_buffer_depth_p = 8;
 
   bsg_cache_pkt_s [l2_banks_p-1:0] cache_pkt_li;
@@ -198,9 +198,9 @@ localparam prefetch_buffer_depth_p = 8;
      );
 
   logic [daddr_width_p-1:0] stride;
-assign stride = '0;
+// assign stride = 1;
   // assign stride = {{(daddr_width_p-7){1'b0}},7'b1000000};
-// assign stride = {{(daddr_width_p-lg_offsets_p-block_offset_width_lp){1'b0}},{offset},{block_offset_width_lp{1'b0}}};
+assign stride = {{(daddr_width_p-lg_offsets_p-block_offset_width_lp){1'b0}},{offset},{block_offset_width_lp{1'b0}}};
 
   bsg_cache_dma_pkt_s [l2_banks_p-1:0] prefetch_pre_stride, prefetch_pkt, prefetch_pkt_r, dma_pkt_lo;
 
@@ -274,14 +274,27 @@ assign stride = '0;
 
       logic miss_to_gen_v_li;
 
-      bsg_edge_detect
-        #(.falling_not_rising_p(0))
-        miss_flop
-        (.clk_i(clk_i)
-        ,.reset_i(reset_i)
-        ,.sig_i(dma_pkt_v_lo[i] & ~dma_pkt_lo[i].write_not_read)
-        ,.detect_o(miss_to_gen_v_li)
-        );
+      // bsg_edge_detect
+      //   #(.falling_not_rising_p(0))
+      //   miss_flop
+      //   (.clk_i(clk_i)
+      //   ,.reset_i(reset_i)
+      //   ,.sig_i(dma_pkt_v_lo[i] & ~dma_pkt_lo[i].write_not_read)
+      //   ,.detect_o(miss_to_gen_v_li)
+      //   );
+
+      // bsg_one_fifo
+      //   #(.width_p(daddr_width_p-block_offset_width_lp))
+      //   miss_to_gen_buff
+      //   (.clk_i(clk_i)
+      //   ,.reset_i(reset_i)
+      //   ,.ready_o()
+      //   ,.data_i(dma_pkt_lo[i].addr[daddr_width_p-1:block_offset_width_lp])
+      //   ,.v_i(miss_to_gen_v_li)
+      //   ,.v_o(miss_rr_v_li[i])
+      //   ,.data_o(dma_miss_addr[i])
+      //   ,.yumi_i(miss_rr_yumi_lo[i])
+      //   );
 
       bsg_one_fifo
         #(.width_p(daddr_width_p-block_offset_width_lp))
@@ -289,8 +302,8 @@ assign stride = '0;
         (.clk_i(clk_i)
         ,.reset_i(reset_i)
         ,.ready_o()
-        ,.data_i(dma_pkt_lo[i].addr[daddr_width_p-1:block_offset_width_lp])
-        ,.v_i(miss_to_gen_v_li)
+        ,.data_i(cache_pkt_li_interm_dma.addr[daddr_width_p-1:block_offset_width_lp])
+        ,.v_i(cache_pkt_v_li_interm)
         ,.v_o(miss_rr_v_li[i])
         ,.data_o(dma_miss_addr[i])
         ,.yumi_i(miss_rr_yumi_lo[i])
@@ -325,7 +338,7 @@ assign stride = '0;
 
       assign prefetch_request_exists_v = |tag_r_match_lo & ~dma_pkt_v_lo[i] & prefetch_request_v_lo & ~page_bound_v;
 
-      assign next_prefetch_request_yumi = ~(dma_pkt_v_lo[i] & ~cache_buffer_hit_v & ~bypass_dma_op_v) & dma_pkt_ready_and_i[i] & dma_request_buffer_ready_and_lo;
+      assign next_prefetch_request_yumi = ~(dma_pkt_v_lo[i] & ~cache_buffer_hit_v & ~bypass_dma_op_v) & dma_pkt_ready_and_i[i] & dma_request_buffer_ready_and_lo & prefetch_request_unique_v;
 
       assign prefetch_request_yumi = prefetch_request_exists_v | (prefetch_request_unique_n & next_prefetch_request_ready_lo) | page_bound_v;
 
@@ -795,12 +808,12 @@ endmodule
 
 module bp_me_best_offset_generator
   #(parameter addr_width_p = 64
-    ,parameter lg_offsets_p = 6
-    ,parameter history_len_p = 8
+    ,parameter lg_offsets_p = 5
+    ,parameter history_len_p = 32
     ,parameter max_score_p = 10
     ,parameter min_score_p = 1
     ,parameter max_rounds_p = 20
-    ,parameter num_outstanding_misses_p = 2
+    ,parameter num_outstanding_misses_p = 4
     ,parameter init_offset_p = 1
   )
   (input                          clk_i
@@ -822,6 +835,8 @@ module bp_me_best_offset_generator
   logic [lg_offsets_p-1:0] current_best_offset;
   logic [`BSG_SAFE_CLOG2(max_score_p)-1:0] current_best_offset_score;
   logic [history_len_p-1:0] tag_empty_lo, tag_r_match_lo, repl_way_lo;
+  logic [addr_width_p-1:0] prefetch_addr_i_adjusted;
+  assign prefetch_addr_i_adjusted = prefetch_addr_i - {{(addr_width_p-lg_offsets_p){1'b0}},offset_o};
 
   bsg_fifo_1r1w_small
     #(.width_p(addr_width_p)
@@ -835,7 +850,7 @@ module bp_me_best_offset_generator
     ,.data_i(miss_addr_i)
     ,.v_o(processing_miss_v_lo)
     ,.data_o(miss_addr_lo)
-    ,.yumi_i(fifo_yumi_li)
+    ,.yumi_i(test_offset == {(lg_offsets_p){1'b1}})
     );
 
   bsg_cam_1r1w_tag_array
@@ -849,7 +864,7 @@ module bp_me_best_offset_generator
 
     ,.w_v_i(repl_way_lo)
     ,.w_set_not_clear_i(prefetch_v_i)
-    ,.w_tag_i(prefetch_addr_i)
+    ,.w_tag_i(prefetch_addr_i_adjusted)
     ,.w_empty_o(tag_empty_lo)
 
     ,.r_v_i(processing_miss_v_lo)
@@ -870,14 +885,7 @@ module bp_me_best_offset_generator
     ,.alloc_v_o(repl_way_lo)
     );
 
-  bsg_adder_ripple_carry
-    #(.width_p(addr_width_p))
-    stride_adder
-    (.a_i(miss_addr_lo)
-    ,.b_i({{(addr_width_p-lg_offsets_p){'0}},{test_offset}})
-    ,.s_o(test_addr)
-    ,.c_o()
-    );
+  assign test_addr = miss_addr_lo-{{(addr_width_p-lg_offsets_p){'0}},{test_offset}};
 
   always_ff @(posedge clk_i) begin
     if (reset_i) begin
@@ -891,6 +899,7 @@ module bp_me_best_offset_generator
     end else if (test_offset == {(lg_offsets_p){1'b1}} & processing_miss_v_lo) begin
       // We are on the last check of this round
       test_offset = 1;
+      fifo_yumi_li <= 1'b1;
       if (round_counter == max_rounds_p - 1) begin
         best_offset <= current_best_offset_score > min_score_p ? current_best_offset : init_offset_p;
         $display("current stride: %d", current_best_offset_score > min_score_p ? current_best_offset : init_offset_p);
@@ -925,9 +934,8 @@ module bp_me_best_offset_generator
     end else begin
       // We wait idly while there are no misses to process
       test_offset <= 1;
+      fifo_yumi_li <= '0;
     end
-    if (test_offset == {(lg_offsets_p){1'b1}}) fifo_yumi_li <= 1'b1;
-    else fifo_yumi_li <= 1'b0;
   end
 
   assign offset_o = best_offset;
