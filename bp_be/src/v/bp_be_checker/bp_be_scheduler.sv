@@ -137,6 +137,8 @@ module bp_be_scheduler
   // Could more intelligently schedule these late writebacks, based on availability and dependencies
   assign late_wb_yumi_o = writeback_v;
 
+
+  // Get our instructions from here (todo: remove this comment)
   bp_be_preissue_pkt_s preissue_pkt;
   bp_be_issue_queue
    #(.bp_params_p(bp_params_p))
@@ -262,6 +264,28 @@ module bp_be_scheduler
       dispatch_pkt_cast_o.special.fencei          |= fe_instr_not_exc_li & issue_pkt_cast_o.fencei;
       dispatch_pkt_cast_o.special.csrw            |= fe_instr_not_exc_li & issue_pkt_cast_o.csrw;
     end
+
+
+  bp_be_loop_inference
+   #(.bp_params_p(bp_params_p))
+   loop_profiler
+    (.clk_i(clk_i)
+    ,.reset_i(reset_i)
+
+    ,.instr_i(preissue_instr)
+    ,.rs1_i(irf_rs1)
+    ,.rs2_i(irf_rs2)
+
+    ,.npc_i(expected_npc_i)
+
+    ,.start_discovery_i()
+    ,.striding_pc()
+
+    ,.remaining_iteratons_o()
+    ,.yumi_i()
+    ,.v_o()
+    );
+
 
 endmodule
 

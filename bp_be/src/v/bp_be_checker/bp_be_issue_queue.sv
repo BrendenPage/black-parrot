@@ -1,4 +1,10 @@
-
+/* bp_be_issue_queue.sv
+ *
+ * 2 cycle instruction decode and issue engine
+ * Same-cycle return preissue_pkt_o to give relevant register
+ * information, next cycle returns final issue packet
+ *
+ */
 `include "bp_common_defines.svh"
 `include "bp_be_defines.svh"
 
