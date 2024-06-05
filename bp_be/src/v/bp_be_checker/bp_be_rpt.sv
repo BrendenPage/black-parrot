@@ -25,7 +25,7 @@ module bp_be_rpt
    , parameter stride_width_p = 8
    , parameter effective_addr_width_p = vaddr_width_p
    , localparam rpt_ctr_width_lp = 2
-   , localparam rpt_tag_width_lp = vaddr_width_p - `BSG_SAFE_CLOG2(rpt_sets_p);
+   , localparam rpt_tag_width_lp = vaddr_width_p - `BSG_SAFE_CLOG2(rpt_sets_p)
    , localparam rpt_entry_width_lp = (rpt_tag_width_lp + rpt_ctr_width_lp + stride_width_p + effective_addr_width_p)
    , localparam rpt_row_width_lp = rpt_entry_width_lp*2+1 // + 1 lru bit
    )
