@@ -151,7 +151,9 @@ module bp_be_rpt
   wire [stride_width_p-1:0] stride_2 = r_data_lo[rpt_entry_width_lp + stride_width_p+rpt_ctr_width_lp : rpt_entry_width_lp + rpt_ctr_width_lp + 1];
 
   assign effective_addr_lo = |tag_match ? tag_match[0] ? effective_addr_1 : effective_addr_2 : '0;
-  assign stride_li = (eff_addr_r - effective_addr_lo)[stride_width_p-1:0];
+  wire [effective_addr_width_p-1:0] addr_diff = eff_addr_r - effective_addr_lo;
+  assign stride_li = addr_diff[stride_width_p-1:0];
+
 
   assign stride_match = {stride_li == stride_2, stride_li == stride_1};
 
