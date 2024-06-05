@@ -26,7 +26,7 @@ module bp_be_stride_detector
   // Instruction interface
    , input  rv64_instr_fmatype_s                     instr_i
    , input  logic [dpath_width_gp-1:0]               rs1_i
-   , input  logic                                    instr_v_i // dont need??
+  //  , input  logic                                    instr_v_i // dont need??
 
    // Second cycle input
    , input  logic [vaddr_width_p-1:0]                npc_i

@@ -113,7 +113,8 @@ module bp_be_rpt
      ,.data_o(pc_r)
      );
 
-  wire [idx_width_lp-1:0] idx_li = is_clear ? init_cnt : pc_i[idx_width_lp-1:0];
+  wire  [idx_width_lp-1:0] idx_li = is_clear ? init_cnt : pc_i[idx_width_lp-1:0];
+  logic [idx_width_lp-1:0] idx_r;
   bsg_dff
     #(.width_p(idx_width_lp))
     idx_reg
@@ -172,7 +173,7 @@ module bp_be_rpt
 
   bsg_mem_1r1w_sync
    #(.width_p(rpt_row_width_lp), .els_p(rpt_sets_p), .read_write_same_addr_p(1))
-   bht_mem
+   rpt_mem
     (.clk_i(clk_i)
      ,.reset_i(reset_i)
 

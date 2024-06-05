@@ -13,7 +13,7 @@ module bp_be_loop_inference
  #(parameter bp_params_e bp_params_p = e_bp_default_cfg
    `declare_bp_proc_params(bp_params_p)
 
-   , localparam output_range_lp = 8 // width of output amount
+   , parameter output_range_p = 8 // width of output amount
    , localparam default_loop_size_lp = 128
    )
    (input                                            clk_i
@@ -32,7 +32,7 @@ module bp_be_loop_inference
    , input  logic                                    confirm_discovery_i
    , input  logic [vaddr_width_p-1:0]                striding_pc_i
   // output interface
-   , output logic [output_range_lp-1:0]              remaining_iteratons_o
+   , output logic [output_range_p-1:0]              remaining_iteratons_o
    , input  logic                                    yumi_i
    , output logic                                    v_o
 
@@ -54,7 +54,7 @@ module bp_be_loop_inference
   logic swap_ops, swap_ops_r, swap_ops_n;
 
   // output value
-  logic [output_range_lp-1:0] remaining_iteratons_n;
+  logic [output_range_p-1:0] remaining_iteratons_n;
 
   // final branch op register holds branch op for the final scouted branch instruction
   bp_be_int_fu_op_e branch_op_n, branch_op_r, f_branch_op_r;
@@ -100,7 +100,6 @@ module bp_be_loop_inference
       branch_pc_r <= '0;
       swap_ops_r <= '0;
       confirm_discovery_r <= '0;
-      confirm_discovery_n <= '0;
       {rs1_r, rs1_r2, rs2_r, rs2_r2} <= '0;
       remaining_iteratons_o <= '0;
     end else begin

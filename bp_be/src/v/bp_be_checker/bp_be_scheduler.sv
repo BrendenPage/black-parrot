@@ -29,6 +29,7 @@ module bp_be_scheduler
    , localparam trans_info_width_lp = `bp_be_trans_info_width(ptag_width_p)
    , localparam wb_pkt_width_lp = `bp_be_wb_pkt_width(vaddr_width_p)
    , localparam output_range_lp = 8
+   , localparam stride_width_p  = 8
    )
   (input                                      clk_i
    , input                                    reset_i
@@ -272,9 +273,11 @@ module bp_be_scheduler
   logic loop_v_o;
   logic instr_gen_ready_and_o;
   logic [output_range_lp-1:0] remaining_iteratons_lo;
+  logic [stride_width_p-1:0] stride_lo;
 
   bp_be_loop_inference
-   #(.bp_params_p(bp_params_p))
+   #(.bp_params_p(bp_params_p)
+    ,.output_range_p(output_range_lp))
    loop_profiler
     (.clk_i(clk_i)
     ,.reset_i(reset_i)
@@ -295,7 +298,8 @@ module bp_be_scheduler
     );
   
   bp_be_stride_detector
-    #(.bp_params_p(bp_params_p))
+    #(.bp_params_p(bp_params_p)
+      ,.stride_width_p(stride_width_p))
     stride_detector
     (.clk_i(clk_i)
     ,.reset_i(reset_i)
@@ -308,6 +312,7 @@ module bp_be_scheduler
     ,.start_discovery_o(start_discovery_lo)
     ,.confirm_discovery_o(confirm_discovery_lo)
     ,.striding_pc_o(striding_pc_lo)
+    ,.stride_o(stride_lo)
     );
 
 
