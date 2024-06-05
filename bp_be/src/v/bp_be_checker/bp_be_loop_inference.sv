@@ -107,7 +107,7 @@ module bp_be_loop_inference
       confirm_discovery_r <= confirm_discovery_n;
       if (start_discovery_i & !confirm_discovery_r) begin
         // Discovering new striding load, set all to zero, latch striding load pc
-        state_n <= 3'b000;
+        state_r <= 3'b000;
         striding_pc_r <= striding_pc_i;
         branch_op_r <= e_int_op_add;
         branch_pc_r <= '0;
