@@ -28,6 +28,7 @@ module bp_be_scheduler
    , localparam decode_info_width_lp = `bp_be_decode_info_width
    , localparam trans_info_width_lp = `bp_be_trans_info_width(ptag_width_p)
    , localparam wb_pkt_width_lp = `bp_be_wb_pkt_width(vaddr_width_p)
+   , localparam output_range_lp = 8
    )
   (input                                      clk_i
    , input                                    reset_i
@@ -266,6 +267,12 @@ module bp_be_scheduler
     end
 
 
+  logic start_discovery_lo, confirm_discovery_lo;
+  logic [vaddr_width_p-1:0] striding_pc_lo;
+  logic loop_v_o;
+  logic instr_gen_ready_and_o;
+  logic [output_range_lp-1:0] remaining_iteratons_lo;
+
   bp_be_loop_inference
    #(.bp_params_p(bp_params_p))
    loop_profiler
@@ -278,12 +285,29 @@ module bp_be_scheduler
 
     ,.npc_i(expected_npc_i)
 
-    ,.start_discovery_i()
-    ,.striding_pc()
+    ,.start_discovery_i(start_discovery_lo)
+    ,.confirm_discovery_i(confirm_discovery_lo)
+    ,.striding_pc_i(striding_pc_lo)
 
-    ,.remaining_iteratons_o()
-    ,.yumi_i()
-    ,.v_o()
+    ,.remaining_iteratons_o(remaining_iteratons_lo)
+    ,.yumi_i(instr_gen_ready_and_o | 1'b1) // TODO: change this when we implement instruction insertion
+    ,.v_o(loop_v_o)
+    );
+  
+  bp_be_stride_detector
+    #(bp_params_p(bp_params_p))
+    stride_detector
+    (.clk_i(clk_i)
+    ,.reset_i(reset_i)
+
+    ,.instr_i(preissue_instr)
+    ,.rs1_i(irf_rs1)
+
+    ,.npc_i(expected_npc_i)
+
+    ,.start_discovery_o(start_discovery_lo)
+    ,.confirm_discovery_o(confirm_discovery_lo)
+    ,.striding_pc_o(striding_pc_lo)
     );
 
 

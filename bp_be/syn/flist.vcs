@@ -207,6 +207,9 @@ $BP_BE_DIR/src/v/bp_be_checker/bp_be_instr_decoder.sv
 $BP_BE_DIR/src/v/bp_be_checker/bp_be_issue_queue.sv
 $BP_BE_DIR/src/v/bp_be_checker/bp_be_regfile.sv
 $BP_BE_DIR/src/v/bp_be_checker/bp_be_scheduler.sv
+$BP_BE_DIR/src/v/bp_be_checker/bp_be_loop_inference.sv
+$BP_BE_DIR/src/v/bp_be_checker/bp_be_stride_detector.sv
+$BP_BE_DIR/src/v/bp_be_checker/bp_be_rpt.sv
 # MMU
 $BP_BE_DIR/src/v/bp_be_dcache/bp_be_dcache.sv
 $BP_BE_DIR/src/v/bp_be_dcache/bp_be_dcache_decoder.sv
