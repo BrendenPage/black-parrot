@@ -96,7 +96,7 @@ module bp_be_loop_inference
       // Set all to zero
       state_r <= 3'b000;
       striding_pc_r <= '0;
-      branch_op_r <= '0;
+      branch_op_r <= e_int_op_add; // all zeros
       branch_pc_r <= '0;
       swap_ops_r <= '0;
       confirm_discovery_r <= '0;
@@ -109,7 +109,7 @@ module bp_be_loop_inference
         // Discovering new striding load, set all to zero, latch striding load pc
         state_n <= 3'b000;
         striding_pc_r <= striding_pc_i;
-        branch_op_r <= '0;
+        branch_op_r <= e_int_op_add;
         branch_pc_r <= '0;
         swap_ops_r <= '0;
         {rs1_r, rs1_r2, rs2_r, rs2_r2} <= '0;
@@ -158,7 +158,7 @@ module bp_be_loop_inference
   end
 
   always_comb begin
-    branch_op_n = '0;
+    branch_op_n = e_int_op_add;
     swap_ops = '0;
     unique casez (instr_i.opcode)
       `RV64_BRANCH_OP:

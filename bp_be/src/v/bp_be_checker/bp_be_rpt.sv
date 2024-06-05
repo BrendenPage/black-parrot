@@ -25,6 +25,7 @@ module bp_be_rpt
    , parameter stride_width_p = 8
    , parameter effective_addr_width_p = vaddr_width_p
    , localparam rpt_ctr_width_lp = 2
+   , localparam rpt_tag_width_lp = vaddr_width_p - `BSG_SAFE_CLOG2(rpt_sets_p);
    , localparam rpt_entry_width_lp = (rpt_tag_width_lp + rpt_ctr_width_lp + stride_width_p + effective_addr_width_p)
    , localparam rpt_row_width_lp = rpt_entry_width_lp*2+1 // + 1 lru bit
    )
@@ -53,7 +54,6 @@ module bp_be_rpt
   assign init_done_o = is_run;
 
   localparam idx_width_lp = `BSG_SAFE_CLOG2(rpt_sets_p);
-  localparam rpt_tag_width_lp = vaddr_width_p - `BSG_SAFE_CLOG2(rpt_sets_p);
   localparam rpt_init_lp = 'b0;
 
 
@@ -141,7 +141,7 @@ module bp_be_rpt
   // tag retrieval
   wire [rpt_tag_width_lp-1:0] tag_1  = r_data_lo[rpt_entry_width_lp:rpt_entry_width_lp-rpt_tag_width_lp + 1];
   wire [rpt_tag_width_lp-1:0] tag_2  = r_data_lo[rpt_row_width_lp-1:rpt_row_width_lp-rpt_tag_width_lp];
-  wire [rpt_tag_width_lp-1:0] tag_li = pc_r[rpt_entry_width_lp-1:rpt_entry_width_lp-rpt_tag_width_lp];
+  wire [rpt_tag_width_lp-1:0] tag_li = pc_r[vaddr_width_p-1 : vaddr_width_p - rpt_tag_width_lp];
 
   assign tag_match = {tag_2 == tag_li, tag_1 == tag_li};
 
