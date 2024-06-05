@@ -157,8 +157,6 @@ module bp_be_loop_inference
   end
 
   always_comb begin
-    branch_op_n = e_int_op_add;
-    swap_ops = '0;
     unique casez (instr_i.opcode)
       `RV64_BRANCH_OP:
           begin
@@ -175,8 +173,17 @@ module bp_be_loop_inference
                 swap_ops = 1'b1;
               end
               `RV64_BGEU : branch_op_n = e_int_op_sgeu;
+              default: begin
+                branch_op_n = e_int_op_add;
+                swap_ops = '0;
+              end
             endcase
           end
+      default: begin
+        branch_op_n = e_int_op_add;
+        swap_ops = '0;
+      end
+
     endcase
   end
 
