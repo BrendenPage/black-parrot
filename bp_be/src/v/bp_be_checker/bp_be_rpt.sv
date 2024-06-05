@@ -52,8 +52,8 @@ module bp_be_rpt
 
   assign init_done_o = is_run;
 
-  localparam idx_width_lp = $BSG_SAFE_CLOG2(rpt_sets_p);
-  localparam rpt_tag_width_lp = vaddr_width_p - $BSG_SAFE_CLOG2(rpt_sets_p);
+  localparam idx_width_lp = `BSG_SAFE_CLOG2(rpt_sets_p);
+  localparam rpt_tag_width_lp = vaddr_width_p - `BSG_SAFE_CLOG2(rpt_sets_p);
   localparam rpt_init_lp = 'b0;
 
 
