@@ -35,6 +35,7 @@ module bp_be_stride_detector
    , output  logic                                   start_discovery_o
    , output  logic                                   confirm_discovery_o
    , output  logic [vaddr_width_p-1:0]               striding_pc_o
+   , output  logic [stride_width_p-1:0]              stride_o
    );
 
   // immediate offset for branch instruction
@@ -47,7 +48,7 @@ module bp_be_stride_detector
   // target computation and comparison
   wire  [effective_addr_width_p-1:0] effective_addr_n = rs1_i + imm;
 
-  logic [vaddr_width-p-1:0] prev_prefetch_addr_1, prev_prefetch_addr_2;
+  logic [vaddr_width_p-1:0] prev_prefetch_addr_1, prev_prefetch_addr_2;
 
   logic [vaddr_width_p-1:0] striding_pc_lo;
 
@@ -92,7 +93,7 @@ module bp_be_stride_detector
 
       ,.init_done_o() // ignore
       ,.w_v_i(load_instr_v_r)
-      ,.pc_in(npc_i)
+      ,.pc_i(npc_i)
       ,.eff_addr_i(eff_addr_r)
 
       ,.stride_o(stride_lo)

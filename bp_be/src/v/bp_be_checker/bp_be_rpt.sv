@@ -13,7 +13,7 @@
  * First cycle: latch read, second cycle: compute dependencies, write, and set output values
  */
 `include "bp_common_defines.svh"
-`include "bp_fe_defines.svh"
+`include "bp_be_defines.svh"
 
 module bp_be_rpt
  import bp_common_pkg::*;
@@ -52,8 +52,8 @@ module bp_be_rpt
 
   assign init_done_o = is_run;
 
-  localparam idx_width_lp = $BSG_SAFE_CLOG2(rpt_els_p);
-  localparam rpt_tag_width_lp = vaddr_width_p - $BSG_SAFE_CLOG2(rpt_els_p);
+  localparam idx_width_lp = $BSG_SAFE_CLOG2(rpt_sets_p);
+  localparam rpt_tag_width_lp = vaddr_width_p - $BSG_SAFE_CLOG2(rpt_sets_p);
   localparam rpt_init_lp = 'b0;
 
 
@@ -113,7 +113,7 @@ module bp_be_rpt
      ,.data_o(pc_r)
      );
 
-  logic [idx_width_lp-1:0] idx_li;
+  wire [idx_width_lp-1:0] idx_li = is_clear ? init_cnt : pc_i[idx_width_lp-1:0];
   bsg_dff
     #(.width_p(idx_width_lp))
     idx_reg
@@ -124,7 +124,6 @@ module bp_be_rpt
 
 
   wire                           mem_v_li = is_clear | w_v_li;
-  wire [idx_width_lp-1:0]        idx_li = is_clear ? init_cnt : pc_i[idx_width_lp-1:0];
   logic [rpt_row_width_lp-1:0]   w_data_li;
   logic [rpt_entry_width_lp-1:0] w_data_1, w_data_2;
 

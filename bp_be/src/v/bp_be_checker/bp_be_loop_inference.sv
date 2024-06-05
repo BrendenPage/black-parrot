@@ -6,6 +6,7 @@
 
 `include "bp_common_defines.svh"
 `include "bp_be_defines.svh"
+`include "bp_be_ctl_pkgdef.svh"
 
 module bp_be_loop_inference
  import bp_common_pkg::*;
@@ -92,7 +93,7 @@ module bp_be_loop_inference
   assign v_o = state_r == 3'b110;
 
   always_ff @(posedge clk_i) begin
-    if (reset) begin
+    if (reset_i) begin
       // Set all to zero
       state_r <= 3'b000;
       striding_pc_r <= '0;
@@ -102,7 +103,7 @@ module bp_be_loop_inference
       confirm_discovery_r <= '0;
       confirm_discovery_n <= '0;
       {rs1_r, rs1_r2, rs2_r, rs2_r2} <= '0;
-      remaining_iteratons_r <= '0;
+      remaining_iteratons_o <= '0;
     end else begin
       confirm_discovery_r <= confirm_discovery_n;
       if (start_discovery_i & !confirm_discovery_r) begin

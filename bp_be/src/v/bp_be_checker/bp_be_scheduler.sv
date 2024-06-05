@@ -295,7 +295,7 @@ module bp_be_scheduler
     );
   
   bp_be_stride_detector
-    #(bp_params_p(bp_params_p))
+    #(.bp_params_p(bp_params_p))
     stride_detector
     (.clk_i(clk_i)
     ,.reset_i(reset_i)
