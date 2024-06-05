@@ -7,7 +7,7 @@
 `include "bp_common_defines.svh"
 `include "bp_be_defines.svh"
 
-module bp_be_loop_inference
+module bp_be_stride_detector
  import bp_common_pkg::*;
  import bp_fe_pkg::*;
  #(parameter bp_params_e bp_params_p = e_bp_default_cfg
