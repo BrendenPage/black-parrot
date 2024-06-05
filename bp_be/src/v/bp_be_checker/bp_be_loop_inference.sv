@@ -5,13 +5,11 @@
  */
 
 `include "bp_common_defines.svh"
-`include "bp_be_pkg.sv"
 `include "bp_be_defines.svh"
-`include "bp_be_ctl_pkgdef.svh"
 
 module bp_be_loop_inference
  import bp_common_pkg::*;
- import bp_fe_pkg::*;
+ import bp_be_pkg::*;
  #(parameter bp_params_e bp_params_p = e_bp_default_cfg
    `declare_bp_proc_params(bp_params_p)
 
