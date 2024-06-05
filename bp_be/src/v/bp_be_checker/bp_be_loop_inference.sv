@@ -5,7 +5,7 @@
  */
 
 `include "bp_common_defines.svh"
-`include "bp_be_pkg.svh"
+`include "bp_be_pkg.sv"
 `include "bp_be_defines.svh"
 `include "bp_be_ctl_pkgdef.svh"
 
