@@ -199,7 +199,7 @@ module bp_be_rpt
     confirm_discovery_o <= 1'b0;
     start_discovery_o <= 1'b0;
     stride_v_o <= 1'b0;
-    if (w_v_i & ((&ctr_1_n & tag_match[0]) | (&ctr_2_n & tag_match[1]))) begin
+    if (mem_v_li & ((&ctr_1_n & tag_match[0]) | (&ctr_2_n & tag_match[1]))) begin
       stride_r <= tag_match[0] ? stride_1 : stride_2;
       stride_v_o <= 1'b1;
       pc_o <= pc_r;
