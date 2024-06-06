@@ -20,9 +20,10 @@ module bp_be_loop_inference
    , input                                           reset_i
 
   // Branch interface
-   , input  rv64_instr_fmatype_s                     instr_i
+   , input  logic [rv64_instr_width_gp-1:0]          instr_i
 
    // Second cycle input
+   , input  logic                                    instr_v_i
    , input  logic [dpath_width_gp-1:0]               rs1_i
    , input  logic [dpath_width_gp-1:0]               rs2_i
    , input  logic [vaddr_width_p-1:0]                npc_i
@@ -32,11 +33,13 @@ module bp_be_loop_inference
    , input  logic                                    confirm_discovery_i
    , input  logic [vaddr_width_p-1:0]                striding_pc_i
   // output interface
-   , output logic [output_range_p-1:0]              remaining_iteratons_o
+   , output logic [output_range_p-1:0]               remaining_iteratons_o
    , input  logic                                    yumi_i
    , output logic                                    v_o
 
    );
+
+  `bp_cast_i(rv64_instr_fmatype_s, instr);
 
   // immediate offset for branch instruction
   logic [dword_width_gp-1:0] imm_n, imm_r;
@@ -70,7 +73,7 @@ module bp_be_loop_inference
 
   // Set the immediate from the predecode packet to latch for next cycle
   // target computation and comparison
-  assign imm_n = `rv64_signext_b_imm(instr_i);
+  assign imm_n = `rv64_signext_b_imm(instr_cast_i);
   wire  [vaddr_width_p-1:0] taken_raw = npc_i + imm_r;
   assign taken_tgt = {taken_raw[vaddr_width_p-1:1], 1'b0};
   
@@ -114,7 +117,7 @@ module bp_be_loop_inference
         {rs1_r, rs1_r2, rs2_r, rs2_r2} <= '0;
       // If there is a branch and its target is signed negative relative to PC
       end else begin
-        
+
         if (state_r == 3'b000) begin
           swap_ops_r <= swap_ops_n;
           branch_op_r <= branch_op_n;
@@ -157,10 +160,10 @@ module bp_be_loop_inference
   end
 
   always_comb begin
-    unique casez (instr_i.opcode)
+    unique casez (instr_cast_i.opcode)
       `RV64_BRANCH_OP:
           begin
-            unique casez (instr_i)
+            unique casez (instr_cast_i)
               `RV64_BEQ  : branch_op_n = e_int_op_eq;
               `RV64_BNE  : branch_op_n = e_int_op_ne;
               `RV64_BLT  : begin
@@ -207,7 +210,7 @@ module bp_be_loop_inference
         // Calculate the target address and compare against the striding pc, if less
         // then we have found our branch, go to next state to wait to see this branch again
         // else restart search
-        if (taken_tgt > striding_pc_r) begin
+        if (taken_tgt > striding_pc_r || ~instr_v_i) begin
           state_n = 3'b000;
         end else begin
           // branch is to before the striding load

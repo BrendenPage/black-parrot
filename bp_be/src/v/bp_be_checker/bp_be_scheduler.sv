@@ -222,15 +222,17 @@ module bp_be_scheduler
   assign wb_decode_li = '{irf_w_v: late_wb_pkt_cast_i.ird_w_v, frf_w_v: late_wb_pkt_cast_i.frd_w_v, default: '0};
   assign walk_decode_li = '{pipe_mem_final_v: ptw_walk_lo, dcache_mmu_v: ptw_walk_lo, fu_op: e_dcache_op_ptw, default: '0};
 
+
+  // in memory pipeline, make it so that the mmu doesnt raise exception on prefetch.
   always_comb
     begin
       // Form dispatch packet
       dispatch_pkt_cast_o = '0;
       dispatch_pkt_cast_o.v          = (fe_queue_read_li & ~poison_isd_i) || be_exc_not_instr_li;
-      dispatch_pkt_cast_o.queue_v    = (fe_queue_read_li & ~poison_isd_i);
-      dispatch_pkt_cast_o.instr_v    = fe_instr_not_exc_li;
-      dispatch_pkt_cast_o.ispec_v    = fe_instr_not_exc_li & ispec_v_i;
-      dispatch_pkt_cast_o.nspec_v    = be_exc_not_instr_li;
+      dispatch_pkt_cast_o.queue_v    = (fe_queue_read_li & ~poison_isd_i);  // comes from front end
+      dispatch_pkt_cast_o.instr_v    = fe_instr_not_exc_li; // is it an instruction
+      dispatch_pkt_cast_o.ispec_v    = fe_instr_not_exc_li & ispec_v_i; // speculative instr for second chance alu, dont worry
+      dispatch_pkt_cast_o.nspec_v    = be_exc_not_instr_li; // non speculative instruciton (injected instruction) (we inject non-speculative)
       dispatch_pkt_cast_o.pc         = expected_npc_i;
       dispatch_pkt_cast_o.instr      = be_exc_not_instr_li ? be_exc_instr_li   : fe_exc_not_instr_li ? fe_exc_instr_li   : issue_pkt_cast_o.instr;
       dispatch_pkt_cast_o.partial    = be_exc_not_instr_li ? be_exc_partial_li : fe_exc_not_instr_li ? fe_exc_partial_li : issue_pkt_cast_o.partial;
@@ -283,6 +285,7 @@ module bp_be_scheduler
     ,.reset_i(reset_i)
 
     ,.instr_i(preissue_instr)
+    ,.instr_v_i(dispatch_pkt_cast_o.v & dispatch_pkt_cast_o.instr_v)
     ,.rs1_i(irf_rs1)
     ,.rs2_i(irf_rs2)
 
@@ -305,6 +308,7 @@ module bp_be_scheduler
     ,.reset_i(reset_i)
 
     ,.instr_i(preissue_instr)
+    ,.instr_v_i(dispatch_pkt_cast_o.v & dispatch_pkt_cast_o.instr_v)
     ,.rs1_i(irf_rs1)
 
     ,.npc_i(expected_npc_i)

@@ -24,12 +24,12 @@ module bp_be_stride_detector
    , input                                           reset_i
 
   // Instruction interface
-   , input  rv64_instr_fmatype_s                     instr_i
+   , input  logic [rv64_instr_width_gp-1:0]          instr_i
    , input  logic [dpath_width_gp-1:0]               rs1_i
-  //  , input  logic                                    instr_v_i // dont need??
 
    // Second cycle input
    , input  logic [vaddr_width_p-1:0]                npc_i
+   , input  logic                                    instr_v_i
 
   // Output interface
    , output  logic                                   start_discovery_o
@@ -37,6 +37,8 @@ module bp_be_stride_detector
    , output  logic [vaddr_width_p-1:0]               striding_pc_o
    , output  logic [stride_width_p-1:0]              stride_o
    );
+
+  `bp_cast_i(rv64_instr_fmatype_s, instr);
 
   // immediate offset for branch instruction
   logic [dword_width_gp-1:0] imm;
@@ -92,7 +94,7 @@ module bp_be_stride_detector
       ,.reset_i(reset_i)
 
       ,.init_done_o() // ignore
-      ,.w_v_i(load_instr_v_r)
+      ,.w_v_i(load_instr_v_r & instr_v_i)
       ,.pc_i(npc_i)
       ,.eff_addr_i(eff_addr_r)
 
@@ -105,14 +107,14 @@ module bp_be_stride_detector
       );
 
   always_comb begin
-    unique casez (instr_i.opcode)
+    unique casez (instr_cast_i.opcode)
       `RV64_LOAD_OP  : begin
         load_instr_v_n = 1'b1;
-        imm = `rv64_signext_i_imm(instr_i);
+        imm = `rv64_signext_i_imm(instr_cast_i);
       end
       `RV64_STORE_OP : begin
         load_instr_v_n = 1'b1;
-        imm = `rv64_signext_s_imm(instr_i);
+        imm = `rv64_signext_s_imm(instr_cast_i);
       end
       default: begin
         imm = 0;
