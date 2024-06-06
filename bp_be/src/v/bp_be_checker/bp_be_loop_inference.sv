@@ -207,7 +207,7 @@ module bp_be_loop_inference
         if (|branch_op_n & imm_n[dword_width_gp-1]) begin
           state_n = 3'b010;
           swap_ops_n = swap_ops;
-      end
+        end else state_n = 3'b001;
 
       3'b010: begin
         // Calculate the target address and compare against the striding pc, if less
