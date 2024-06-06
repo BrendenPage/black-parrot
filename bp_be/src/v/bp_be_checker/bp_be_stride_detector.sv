@@ -35,6 +35,8 @@ module bp_be_stride_detector
    , output  logic                                   start_discovery_o
    , output  logic                                   confirm_discovery_o
    , output  logic [vaddr_width_p-1:0]               striding_pc_o
+   , output  [effective_addr_width_p-1:0]            eff_addr_o
+
    , output  logic [stride_width_p-1:0]              stride_o
    );
 
@@ -58,6 +60,14 @@ module bp_be_stride_detector
 
   logic start_discovery_lo, confirm_discovery_lo, v_lo;
 
+  // Need to latch inputs to rpt as the pc comes in next cycle
+  logic [effective_addr_width_p-1:0] eff_addr_r, eff_addr_lo;
+  logic load_instr_v_r;
+  always_ff @(posedge clk_i) begin
+    eff_addr_r <= effective_addr_n;
+    load_instr_v_r <= load_instr_v_n;
+  end
+
   always_ff @(posedge clk_i) begin
     if (reset_i) begin
       prev_prefetch_addr_1 <= '0;
@@ -65,7 +75,8 @@ module bp_be_stride_detector
       start_discovery_o <= '0;
       striding_pc_o <= '0;
     end else begin
-      if (confirm_discovery_lo || start_discovery_lo) begin
+      // Only want to prefetch on relatively new PCs
+      if (confirm_discovery_lo || start_discovery_lo && (prev_prefetch_addr_1 != striding_pc_lo && prev_prefetch_addr_2 != striding_pc_lo)) begin
         // We haven't just tried to prefetch on this address
         prev_prefetch_addr_2 <= prev_prefetch_addr_1;
         prev_prefetch_addr_1 <= striding_pc_lo;
@@ -73,18 +84,12 @@ module bp_be_stride_detector
         start_discovery_o <= start_discovery_lo;
 
         striding_pc_o <= striding_pc_lo;
+        eff_addr_o <= eff_addr_lo;
         stride_o <= stride_lo;
       end
     end
   end
 
-  // Need to latch inputs to rpt as the pc comes in next cycle
-  logic [effective_addr_width_p-1:0] eff_addr_r;
-  logic load_instr_v_r;
-  always_ff @(posedge clk_i) begin
-    eff_addr_r <= effective_addr_n;
-    load_instr_v_r <= load_instr_v_n;
-  end
 
   bp_be_rpt #(.rpt_sets_p(rpt_sets_p)
               ,.stride_width_p(stride_width_p)
@@ -97,6 +102,7 @@ module bp_be_stride_detector
       ,.w_v_i(load_instr_v_r & instr_v_i)
       ,.pc_i(npc_i)
       ,.eff_addr_i(eff_addr_r)
+      ,.eff_addr_o(eff_addr_lo)
 
       ,.stride_o(stride_lo)
       ,.stride_v_o(v_lo)

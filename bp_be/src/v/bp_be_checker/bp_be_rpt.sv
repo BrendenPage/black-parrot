@@ -35,8 +35,9 @@ module bp_be_rpt
    , output logic                         init_done_o
 
    , input                                w_v_i
-   , input [vaddr_width_p-1:0]            pc_i
-   , input [effective_addr_width_p-1:0]   eff_addr_i
+   , input  [vaddr_width_p-1:0]           pc_i
+   , input  [effective_addr_width_p-1:0]  eff_addr_i
+   , output [effective_addr_width_p-1:0]  eff_addr_o
 
    , output logic [stride_width_p-1:0]    stride_o
    , output logic                         stride_v_o
@@ -196,12 +197,22 @@ module bp_be_rpt
   assign stride_vector_n = stride_vector_r | new_idx;
   assign stride_o = stride_r;
   always_ff @(posedge clk_i) begin
+    if (reset_i) begin
+      stride_r <= '0;
+      stride_vector_r <= '0;
+      start_discovery_o <= '0;
+      pc_o <= '0;
+      stride_v_o <= '0;
+      confirm_discovery_o <= '0;
+      eff_addr_o <= '0;
+    end
     confirm_discovery_o <= 1'b0;
     start_discovery_o <= 1'b0;
     stride_v_o <= 1'b0;
     if (mem_v_li & ((&ctr_1_n & tag_match[0]) | (&ctr_2_n & tag_match[1]))) begin
       stride_r <= tag_match[0] ? stride_1 : stride_2;
       stride_v_o <= 1'b1;
+      eff_addr_o <= eff_addr_i;
       pc_o <= pc_r;
       if (!stride_vector_r) begin
         // Start discovery, init stride vec
@@ -227,6 +238,7 @@ module bp_be_rpt
       end
     end else begin
       stride_r <= '0;
+      eff_addr_o <= '0;
       stride_v_o <= 1'b0;
       pc_o <= '0;
       start_discovery_o <= 1'b0;
