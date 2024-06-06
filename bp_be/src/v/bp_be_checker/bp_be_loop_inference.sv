@@ -69,8 +69,6 @@ module bp_be_loop_inference
 
   logic [2:0] state_n, state_r;
 
-  logic discovering;
-
   // bp_be_pipe_int ~90
 
   // Set the immediate from the predecode packet to latch for next cycle
@@ -94,7 +92,7 @@ module bp_be_loop_inference
 
   // TODO: Finish setting this up so its latched into registers properly.
   assign remaining_iteratons_n = unable_to_determine ? default_loop_size_lp : rdist_r >> denom_r;
-  assign v_o = state_r == 3'b110;
+  assign v_o = state_r == 3'b111;
 
   always_ff @(posedge clk_i) begin
     if (reset_i) begin
@@ -105,31 +103,29 @@ module bp_be_loop_inference
       branch_pc_r <= '0;
       swap_ops_r <= '0;
       confirm_discovery_r <= '0;
-      discovering <= '0;
       {rs1_r, rs1_r2, rs2_r, rs2_r2} <= '0;
       remaining_iteratons_o <= '0;
     end else begin
       confirm_discovery_r <= confirm_discovery_n;
       if (start_discovery_i & !confirm_discovery_r) begin
         // Discovering new striding load, set all to zero, latch striding load pc
-        state_r <= 3'b000;
+        state_n <= 3'b001;
         striding_pc_r <= striding_pc_i;
         branch_op_r <= e_int_op_add;
         branch_pc_r <= '0;
         swap_ops_r <= '0;
         {rs1_r, rs1_r2, rs2_r, rs2_r2} <= '0;
-        discovering <= 1'b1;
       // If there is a branch and its target is signed negative relative to PC
       end else begin
 
-        if (state_r == 3'b000) begin
+        if (state_r == 3'b001) begin
           swap_ops_r <= swap_ops_n;
           branch_op_r <= branch_op_n;
           imm_r <= imm_n;
           branch_pc_r <= '0;
         end
 
-        if (state_r == 3'b001) begin
+        if (state_r == 3'b010) begin
           branch_pc_r <= branch_pc_n;
           if (swap_ops_r) begin
             rs1_r <= rs2_i;
@@ -140,7 +136,7 @@ module bp_be_loop_inference
           end
         end
         
-        if (state_r == 3'b010) begin
+        if (state_r == 3'b011) begin
           if (swap_ops_r) begin
             rs1_r2 <= rs2_i;
             rs2_r2 <= rs1_i;
@@ -150,11 +146,11 @@ module bp_be_loop_inference
           end
         end
 
-        if (state_r == 3'b011) begin
+        if (state_r == 3'b100) begin
           denom_r <= denom_n;
           rdist_r <= rdist_n;
         end
-        if (state_r == 3'b100) begin
+        if (state_r == 3'b101) begin
           remaining_iteratons_o <= remaining_iteratons_n;
         end
       end
@@ -203,49 +199,52 @@ module bp_be_loop_inference
     swap_ops_n = swap_ops_r;
     case(state_r)
       3'b000:
+        // Waiting to enter discovery mode
+        state_n <= start_discovery_i ? 3'b001 : 3'b000;
+      3'b001:
         // look for a branch instruction, we have just entered discovery mode
         // Check if the branch is to a negative offset (backedge)
-        if (|branch_op_n & imm_n[dword_width_gp-1] & discovering) begin
-          state_n = 3'b001;
+        if (|branch_op_n & imm_n[dword_width_gp-1]) begin
+          state_n = 3'b010;
           swap_ops_n = swap_ops;
       end
 
-      3'b001: begin
+      3'b010: begin
         // Calculate the target address and compare against the striding pc, if less
         // then we have found our branch, go to next state to wait to see this branch again
         // else restart search
         if (taken_tgt > striding_pc_r || ~instr_v_i) begin
-          state_n = 3'b000;
+          state_n = 3'b001;
         end else begin
           // branch is to before the striding load
-          state_n = 3'b010;
+          state_n = 3'b011;
           branch_pc_n = npc_i;
         end
       end
 
-      3'b010:
+      3'b011:
         // We now are just waiting until we see the same branch again to compare register state
         if (npc_i == branch_pc_r) begin
-          state_n = 3'b011;
+          state_n = 3'b100;
         end else begin
-          state_n = 3'b010;
+          state_n = 3'b011;
           branch_pc_n = branch_pc_r;
         end
 
-      3'b011:
-        // Get difference of registers and set up for division
-          state_n = 3'b100;
       3'b100:
-        // Divide
-          state_n = confirm_discovery_n | confirm_discovery_r ? 3'b110 : 3'b101;
+        // Get difference of registers and set up for division
+          state_n = 3'b101;
       3'b101:
-        // Wait to confirm discovery
-          state_n = confirm_discovery_n | confirm_discovery_r ? 3'b110 : 3'b101;
+        // Divide
+          state_n = confirm_discovery_n | confirm_discovery_r ? 3'b111 : 3'b110;
       3'b110:
+        // Wait to confirm discovery
+          state_n = confirm_discovery_n | confirm_discovery_r ? 3'b111 : 3'b110;
+      3'b111:
           if (yumi_i) begin
             state_n = 3'b000;
           end else begin
-            state_n = 3'b110;
+            state_n = 3'b111;
           end
     endcase
   end
