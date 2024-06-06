@@ -276,6 +276,7 @@ module bp_be_scheduler
   logic instr_gen_ready_and_o;
   logic [output_range_lp-1:0] remaining_iteratons_lo;
   logic [stride_width_p-1:0] stride_lo;
+  logic [vaddr_width_p-1:0] eff_addr_lo;
 
   bp_be_loop_inference
    #(.bp_params_p(bp_params_p)
@@ -302,7 +303,8 @@ module bp_be_scheduler
   
   bp_be_stride_detector
     #(.bp_params_p(bp_params_p)
-      ,.stride_width_p(stride_width_p))
+      ,.stride_width_p(stride_width_p)
+      ,.effective_addr_width_p(vaddr_width_p))
     stride_detector
     (.clk_i(clk_i)
     ,.reset_i(reset_i)
@@ -316,6 +318,7 @@ module bp_be_scheduler
     ,.start_discovery_o(start_discovery_lo)
     ,.confirm_discovery_o(confirm_discovery_lo)
     ,.striding_pc_o(striding_pc_lo)
+    ,.eff_addr_o(eff_addr_lo)
     ,.stride_o(stride_lo)
     );
 
