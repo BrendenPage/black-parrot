@@ -162,8 +162,8 @@ module bp_be_rpt
   wire [rpt_ctr_width_lp-1:0] ctr_2 = r_data_lo[rpt_entry_width_lp + rpt_ctr_width_lp:rpt_entry_width_lp + 1];
 
   // FSM update
-  assign ctr_1_n = stride_match[0] ? &ctr_1 ? ctr_1 : {ctr_1[0], ~ctr_1[0]} : '0;
-  assign ctr_2_n = stride_match[1] ? &ctr_2 ? ctr_2 : {ctr_2[0], ~ctr_2[0]} : '0;
+  assign ctr_1_n = stride_match[0] ? &ctr_1 ? ctr_1 : {ctr_1[0] ^ ctr_1[1], ~ctr_1[0]} : '0;
+  assign ctr_2_n = stride_match[1] ? &ctr_2 ? ctr_2 : {ctr_2[0] ^ ctr_2[1], ~ctr_2[0]} : '0;
 
   wire lru_n = tag_match[0] ? 1'b1 : tag_match[1] ? 1'b0 : ~lru;
 
