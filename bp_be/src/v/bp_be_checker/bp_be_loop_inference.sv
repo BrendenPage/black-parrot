@@ -105,6 +105,7 @@ module bp_be_loop_inference
       branch_pc_r <= '0;
       swap_ops_r <= '0;
       confirm_discovery_r <= '0;
+      discovering <= '0;
       {rs1_r, rs1_r2, rs2_r, rs2_r2} <= '0;
       remaining_iteratons_o <= '0;
     end else begin
