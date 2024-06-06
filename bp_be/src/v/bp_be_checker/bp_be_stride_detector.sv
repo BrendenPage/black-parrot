@@ -35,7 +35,7 @@ module bp_be_stride_detector
    , output  logic                                   start_discovery_o
    , output  logic                                   confirm_discovery_o
    , output  logic [vaddr_width_p-1:0]               striding_pc_o
-   , output  [effective_addr_width_p-1:0]            eff_addr_o
+   , output  logic [effective_addr_width_p-1:0]      eff_addr_o
 
    , output  logic [stride_width_p-1:0]              stride_o
    );

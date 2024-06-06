@@ -29,21 +29,21 @@ module bp_be_rpt
    , localparam rpt_entry_width_lp = (rpt_tag_width_lp + rpt_ctr_width_lp + stride_width_p + effective_addr_width_p)
    , localparam rpt_row_width_lp = rpt_entry_width_lp*2+1 // + 1 lru bit
    )
-  (input                                  clk_i
-   , input                                reset_i
+  (input                                        clk_i
+   , input                                      reset_i
 
-   , output logic                         init_done_o
+   , output logic                               init_done_o
 
-   , input                                w_v_i
-   , input  [vaddr_width_p-1:0]           pc_i
-   , input  [effective_addr_width_p-1:0]  eff_addr_i
-   , output [effective_addr_width_p-1:0]  eff_addr_o
+   , input                                      w_v_i
+   , input        [vaddr_width_p-1:0]           pc_i
+   , input        [effective_addr_width_p-1:0]  eff_addr_i
 
-   , output logic [stride_width_p-1:0]    stride_o
-   , output logic                         stride_v_o
-   , output logic [vaddr_width_p-1:0]     pc_o
-   , output logic                         start_discovery_o
-   , output logic                         confirm_discovery_o
+   , output logic [effective_addr_width_p-1:0]  eff_addr_o
+   , output logic [stride_width_p-1:0]          stride_o
+   , output logic                               stride_v_o
+   , output logic [vaddr_width_p-1:0]           pc_o
+   , output logic                               start_discovery_o
+   , output logic                               confirm_discovery_o
    );
 
   // Initialization state machine, write all elements as zero
