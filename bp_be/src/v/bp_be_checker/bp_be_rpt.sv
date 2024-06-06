@@ -166,8 +166,8 @@ module bp_be_rpt
   assign ctr_2_n = stride_match[1] ? &ctr_2 ? ctr_2 : {ctr_2[0], ~ctr_2[0]} : '0;
 
   // Compile data
-  assign w_data_1 = (|tag_match & ~lru) | tag_match[0] ? {tag_li, eff_addr_r, stride_li, ctr_1_n} : r_data_lo[rpt_entry_width_lp:1];
-  assign w_data_2 = (|tag_match & lru) | tag_match[1] ? {tag_li, eff_addr_r, stride_li, ctr_2_n} : r_data_lo[rpt_row_width_lp-1:rpt_entry_width_lp];
+  assign w_data_1 = (|(~tag_match) & ~lru) | tag_match[0] ? {tag_li, eff_addr_r, stride_li, ctr_1_n} : r_data_lo[rpt_entry_width_lp:1];
+  assign w_data_2 = (|(~tag_match) & lru) | tag_match[1] ? {tag_li, eff_addr_r, stride_li, ctr_2_n} : r_data_lo[rpt_row_width_lp-1:rpt_entry_width_lp];
   assign w_data_li = is_clear ? '0 : {w_data_2, w_data_1};
 
 

@@ -69,6 +69,8 @@ module bp_be_loop_inference
 
   logic [2:0] state_n, state_r;
 
+  logic discovering;
+
   // bp_be_pipe_int ~90
 
   // Set the immediate from the predecode packet to latch for next cycle
@@ -115,6 +117,7 @@ module bp_be_loop_inference
         branch_pc_r <= '0;
         swap_ops_r <= '0;
         {rs1_r, rs1_r2, rs2_r, rs2_r2} <= '0;
+        discovering <= 1'b1;
       // If there is a branch and its target is signed negative relative to PC
       end else begin
 
@@ -201,7 +204,7 @@ module bp_be_loop_inference
       3'b000:
         // look for a branch instruction, we have just entered discovery mode
         // Check if the branch is to a negative offset (backedge)
-        if (|branch_op_n & imm_n[dword_width_gp-1]) begin
+        if (|branch_op_n & imm_n[dword_width_gp-1] & discovering) begin
           state_n = 3'b001;
           swap_ops_n = swap_ops;
       end
