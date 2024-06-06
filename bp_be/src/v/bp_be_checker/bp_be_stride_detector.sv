@@ -72,8 +72,9 @@ module bp_be_stride_detector
     if (reset_i) begin
       prev_prefetch_addr_1 <= '0;
       prev_prefetch_addr_2 <= '0;
-      start_discovery_o <= '0;
-      striding_pc_o <= '0;
+      start_discovery_o    <= '0;
+      confirm_discovery_o  <= '0;
+      striding_pc_o        <= '0;
     end else begin
       // Only want to prefetch on relatively new PCs
       if (confirm_discovery_lo || start_discovery_lo && (prev_prefetch_addr_1 != striding_pc_lo && prev_prefetch_addr_2 != striding_pc_lo)) begin
@@ -86,6 +87,12 @@ module bp_be_stride_detector
         striding_pc_o <= striding_pc_lo;
         eff_addr_o <= eff_addr_lo;
         stride_o <= stride_lo;
+      end else begin
+        confirm_discovery_o <= '0;
+        start_discovery_o   <= '0;
+        striding_pc_o       <= '0;
+        eff_addr_o          <= '0;
+        stride_o            <= '0;
       end
     end
   end

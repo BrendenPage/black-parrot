@@ -200,7 +200,7 @@ module bp_be_loop_inference
     case(state_r)
       3'b000:
         // Waiting to enter discovery mode
-        state_n <= start_discovery_i ? 3'b001 : 3'b000;
+        state_n = start_discovery_i ? 3'b001 : 3'b000;
       3'b001:
         // look for a branch instruction, we have just entered discovery mode
         // Check if the branch is to a negative offset (backedge)
