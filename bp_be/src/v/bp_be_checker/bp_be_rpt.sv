@@ -165,10 +165,12 @@ module bp_be_rpt
   assign ctr_1_n = stride_match[0] ? &ctr_1 ? ctr_1 : {ctr_1[0], ~ctr_1[0]} : '0;
   assign ctr_2_n = stride_match[1] ? &ctr_2 ? ctr_2 : {ctr_2[0], ~ctr_2[0]} : '0;
 
+  wire lru_n = tag_match[0] ? 1'b1 : tag_match[1] ? 1'b0 : ~lru;
+
   // Compile data
-  assign w_data_1 = (|(~tag_match) & ~lru) | tag_match[0] ? {tag_li, eff_addr_r, stride_li, ctr_1_n} : r_data_lo[rpt_entry_width_lp:1];
-  assign w_data_2 = (|(~tag_match) & lru) | tag_match[1] ? {tag_li, eff_addr_r, stride_li, ctr_2_n} : r_data_lo[rpt_row_width_lp-1:rpt_entry_width_lp];
-  assign w_data_li = is_clear ? '0 : {w_data_2, w_data_1};
+  assign w_data_1 = (&(~tag_match) & ~lru) | tag_match[0] ? {tag_li, eff_addr_r, stride_li, ctr_1_n} : r_data_lo[rpt_entry_width_lp:1];
+  assign w_data_2 = (&(~tag_match) & lru) | tag_match[1] ? {tag_li, eff_addr_r, stride_li, ctr_2_n} : r_data_lo[rpt_row_width_lp-1:rpt_entry_width_lp];
+  assign w_data_li = is_clear ? '0 : {w_data_2, w_data_1, lru_n};
 
 
   bsg_mem_1r1w_sync
