@@ -60,7 +60,7 @@ module bp_be_loop_inference
   logic [output_range_p-1:0] remaining_iteratons_n;
 
   // final branch op register holds if branch op for the final scouted branch instruction
-  logic branch_op_n, branch_op_r;
+  logic branch_op_v;
 
   // Registers to store the denominator and distance values for output calculation
   logic [dpath_width_gp-1:0] denom_r, rdist_r;
@@ -99,7 +99,6 @@ module bp_be_loop_inference
       // Set all to zero
       state_r <= 3'b000;
       striding_pc_r <= '0;
-      branch_op_r <= 1'b0; // all zeros
       branch_pc_r <= '0;
       swap_ops_r <= '0;
       confirm_discovery_r <= '0;
@@ -107,11 +106,10 @@ module bp_be_loop_inference
       remaining_iteratons_o <= '0;
     end else begin
       confirm_discovery_r <= confirm_discovery_n;
-      if (start_discovery_i & !confirm_discovery_r) begin
+      if (start_discovery_i & (!confirm_discovery_r | state_r == 3'b001)) begin
         // Discovering new striding load, set all to zero, latch striding load pc
         state_r <= 3'b001;
         striding_pc_r <= striding_pc_i;
-        branch_op_r <= 1'b0;
         branch_pc_r <= '0;
         swap_ops_r <= '0;
         {rs1_r, rs1_r2, rs2_r, rs2_r2} <= '0;
@@ -120,7 +118,6 @@ module bp_be_loop_inference
 
         if (state_r == 3'b001) begin
           swap_ops_r <= swap_ops_n;
-          branch_op_r <= branch_op_n;
           imm_r <= imm_n;
           branch_pc_r <= '0;
         end
@@ -164,26 +161,26 @@ module bp_be_loop_inference
       `RV64_BRANCH_OP:
           begin
             unique casez (instr_cast_i)
-              `RV64_BEQ  : branch_op_n = 1'b1;
-              `RV64_BNE  : branch_op_n = 1'b1;
+              `RV64_BEQ  : branch_op_v = 1'b1;
+              `RV64_BNE  : branch_op_v = 1'b1;
               `RV64_BLT  : begin
-                branch_op_n = 1'b1;
+                branch_op_v = 1'b1;
                 swap_ops = 1'b1;
               end
-              `RV64_BGE  : branch_op_n = 1'b1;
+              `RV64_BGE  : branch_op_v = 1'b1;
               `RV64_BLTU : begin
-                branch_op_n = 1'b1;
+                branch_op_v = 1'b1;
                 swap_ops = 1'b1;
               end
-              `RV64_BGEU : branch_op_n = 1'b1;
+              `RV64_BGEU : branch_op_v = 1'b1;
               default: begin
-                branch_op_n = 1'b0;
+                branch_op_v = 1'b0;
                 swap_ops = '0;
               end
             endcase
           end
       default: begin
-        branch_op_n = 1'b0;
+        branch_op_v = 1'b0;
         swap_ops = '0;
       end
 
@@ -204,7 +201,7 @@ module bp_be_loop_inference
       3'b001:
         // look for a branch instruction, we have just entered discovery mode
         // Check if the branch is to a negative offset (backedge)
-        if (branch_op_n & imm_n[dword_width_gp-1]) begin
+        if (branch_op_v & imm_n[dword_width_gp-1]) begin
           state_n = 3'b010;
           swap_ops_n = swap_ops;
         end else state_n = 3'b001;
