@@ -229,6 +229,7 @@ $BP_BE_DIR/src/v/bp_be_checker/bp_be_regfile.sv
 $BP_BE_DIR/src/v/bp_be_checker/bp_be_rpt.sv
 $BP_BE_DIR/src/v/bp_be_checker/bp_be_stride_detector.sv
 $BP_BE_DIR/src/v/bp_be_checker/bp_be_loop_inference.sv
+$BP_BE_DIR/src/v/bp_be_checker/bp_be_prefetch_generator.sv
 $BP_BE_DIR/src/v/bp_be_checker/bp_be_scheduler.sv
 $BP_BE_DIR/src/v/bp_be_checker/bp_be_scoreboard.sv
 # MMU
