@@ -58,9 +58,9 @@ module bp_be_prefetch_generator
     remaining_prefetches_ctr
       (.clk_i(clk_i)
       ,.reset_i(reset_i)
-      ,.set_i(v_i)
+      ,.set_i(v_i & state_r == 3'b000)
       ,.val_i(loop_counter_i)
-      ,.down_i((ready_and_o & v_i) || (state_r == 3'b001 && prev_block_n == prev_block_r))
+      ,.down_i(((ready_and_o & v_i) || (state_r == 3'b001 && prev_block_n == prev_block_r)) && loop_counter_r != '0)
       ,.count_r_o(loop_counter_r)
       );
 
@@ -132,6 +132,8 @@ module bp_be_prefetch_generator
       decode.mem_v            = 1'b1;
       decode.fu_op  = e_dcache_op_lb;
       decode.prefetch         = 1'b1;
+      decode.irs1_tag         = e_int_word;
+      decode.irsd_tag         = e_int_word;
     end
 
   always_comb
