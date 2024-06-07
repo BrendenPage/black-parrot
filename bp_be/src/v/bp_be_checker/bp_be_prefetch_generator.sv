@@ -37,6 +37,8 @@ module bp_be_prefetch_generator
 
    );
 
+  `declare_bp_be_internal_if_structs(vaddr_width_p, paddr_width_p, asid_width_p, branch_metadata_fwd_width_p);
+
   `bp_cast_o(bp_be_dispatch_pkt_s, dispatch_pkt);
   `bp_cast_i(rv64_instr_ftype_s, instr);
 
