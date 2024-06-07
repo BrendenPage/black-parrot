@@ -16,6 +16,7 @@ module bp_be_prefetch_generator
    , parameter loop_range_p = 8 // width of output amount
    , parameter stride_width_p = 8
    , localparam block_width_p = dcache_block_width_p
+   , localparam dispatch_pkt_width_lp = `bp_be_dispatch_pkt_width(vaddr_width_p)
    )
    (input                                            clk_i
    , input                                           reset_i
