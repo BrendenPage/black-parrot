@@ -281,7 +281,7 @@ module bp_be_scheduler
   logic [vaddr_width_p-1:0] eff_addr_lo, pref_eff_addr_lo;
   logic pref_v_lo;
   bp_be_dispatch_pkt_s pref_dispatch_pkt;
-  wire entered_main = npc_i == 'h80000148;
+  wire entered_main = expected_npc_i == 'h80000148;
 
 
   bp_be_loop_inference
