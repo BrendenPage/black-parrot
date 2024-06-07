@@ -217,8 +217,7 @@ module bp_be_loop_inference
         state_n = start_discovery_i ? 3'b001 : 3'b000;
       3'b001:
         // look for a branch instruction, we have just entered discovery mode
-        // Check if the branch is to a negative offset (backedge)
-        if (branch_op_v & imm_n[dword_width_gp-1]) begin
+        if (branch_op_v) begin
           state_n = 3'b010;
           swap_ops_n = swap_ops;
         end else state_n = 3'b001;
