@@ -14,6 +14,8 @@ module bp_be_loop_inference
    `declare_bp_proc_params(bp_params_p)
 
    , parameter output_range_p = 8 // width of output amount
+   , parameter effective_addr_width_p = vaddr_width_p
+   , parameter stride_width_p = 8
    , localparam default_loop_size_lp = 128
    )
    (input                                            clk_i
@@ -21,6 +23,8 @@ module bp_be_loop_inference
 
   // Branch interface
    , input  logic [rv64_instr_width_gp-1:0]          instr_i
+   , input  logic [effective_addr_width_p-1:0]       eff_addr_i
+   , input  logic [stride_width_p-1:0]               stride_i
 
    // Second cycle input
    , input  logic                                    instr_v_i
@@ -34,15 +38,22 @@ module bp_be_loop_inference
    , input  logic [vaddr_width_p-1:0]                striding_pc_i
   // output interface
    , output logic [output_range_p-1:0]               remaining_iteratons_o
+   , output logic [vaddr_width_p-1:0]                pc_o
+   , output logic [effective_addr_width_p-1:0]       eff_addr_o
+   , output logic [stride_width_p-1:0]               stride_o
    , input  logic                                    yumi_i
    , output logic                                    v_o
 
    );
 
-  `bp_cast_i(rv64_instr_fmatype_s, instr);
+  `bp_cast_i(rv64_instr_btype_s, instr);
 
   // immediate offset for branch instruction
   logic [dword_width_gp-1:0] imm_n, imm_r;
+
+  logic [effective_addr_width_p-1:0] eff_addr_r;
+
+  logic [stride_width_p-1:0] stride_r;
 
   // Store the register values for the first and second time we see each branch
   logic [dpath_width_gp-1:0] rs1_r, rs2_r, rs1_r2, rs2_r2;
@@ -76,7 +87,7 @@ module bp_be_loop_inference
   assign imm_n = `rv64_signext_b_imm(instr_cast_i);
   wire  [vaddr_width_p-1:0] taken_raw = npc_i + imm_r;
   assign taken_tgt = {taken_raw[vaddr_width_p-1:1], 1'b0};
-  
+
   // register difference calculations
 
   // We are only doing BGE/BGEU calculations for simplicity
@@ -104,15 +115,21 @@ module bp_be_loop_inference
       confirm_discovery_r <= '0;
       {rs1_r, rs1_r2, rs2_r, rs2_r2} <= '0;
       remaining_iteratons_o <= '0;
+      imm_r <= '0;
+      eff_addr_r <= '0;
+      stride_r <= '0;
     end else begin
       confirm_discovery_r <= confirm_discovery_n;
       if (start_discovery_i & (!confirm_discovery_r | state_r == 3'b001)) begin
         // Discovering new striding load, set all to zero, latch striding load pc
         state_r <= 3'b001;
         striding_pc_r <= striding_pc_i;
+        eff_addr_r <= eff_addr_i;
+        stride_r <= stride_i;
         branch_pc_r <= '0;
         swap_ops_r <= '0;
         {rs1_r, rs1_r2, rs2_r, rs2_r2} <= '0;
+        imm_r <= '0;
       // If there is a branch and its target is signed negative relative to PC
       end else begin
 
@@ -246,5 +263,7 @@ module bp_be_loop_inference
     endcase
   end
 
-
+  assign pc_o = striding_pc_r;
+  assign eff_addr_o <= eff_addr_r;
+  assign stride_o <= stride_r;
 endmodule

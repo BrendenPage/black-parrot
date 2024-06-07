@@ -103,6 +103,7 @@
     ,e_dcache_op_amomaxud = 6'b100001
 
     ,e_dcache_op_ptw      = 6'b111000
+    // ,e_dcache_op_prefetch = 6'b111001
 
     ,e_dcache_op_bzero    = 6'b110000
     ,e_dcache_op_bclean   = 6'b110001
@@ -209,6 +210,7 @@
     logic                              spec_w_v;
     logic                              fmove_v;
     logic                              carryin;
+    logic                              prefetch;
 
     logic                              irs1_unsigned;
     logic [$bits(bp_be_int_tag_e)-1:0] irs1_tag;

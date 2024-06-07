@@ -134,7 +134,7 @@ module bp_be_scheduler
   wire fe_queue_deq_skip_li  = !commit_pkt_cast_i.compressed | commit_pkt_cast_i.partial;
   wire fe_queue_roll_li      = commit_pkt_cast_i.npc_w_v;
   wire fe_queue_read_li      = fe_instr_not_exc_li | fe_exc_not_instr_li;
-  wire fe_queue_read_skip_li = !dispatch_pkt_cast_o.decode.compressed | dispatch_pkt_cast_o.partial;
+  wire fe_queue_read_skip_li = !dispatch_pkt_cast_lo.decode.compressed | dispatch_pkt_cast_lo.partial;
 
   // Could more intelligently schedule these late writebacks, based on availability and dependencies
   assign late_wb_yumi_o = writeback_v;
@@ -227,56 +227,58 @@ module bp_be_scheduler
   always_comb
     begin
       // Form dispatch packet
-      dispatch_pkt_cast_o = '0;
-      dispatch_pkt_cast_o.v          = (fe_queue_read_li & ~poison_isd_i) || be_exc_not_instr_li;
-      dispatch_pkt_cast_o.queue_v    = (fe_queue_read_li & ~poison_isd_i);  // comes from front end
-      dispatch_pkt_cast_o.instr_v    = fe_instr_not_exc_li; // is it an instruction
-      dispatch_pkt_cast_o.ispec_v    = fe_instr_not_exc_li & ispec_v_i; // speculative instr for second chance alu, dont worry
-      dispatch_pkt_cast_o.nspec_v    = be_exc_not_instr_li; // non speculative instruciton (injected instruction) (we inject non-speculative)
-      dispatch_pkt_cast_o.pc         = expected_npc_i;
-      dispatch_pkt_cast_o.instr      = be_exc_not_instr_li ? be_exc_instr_li   : fe_exc_not_instr_li ? fe_exc_instr_li   : issue_pkt_cast_o.instr;
-      dispatch_pkt_cast_o.partial    = be_exc_not_instr_li ? be_exc_partial_li : fe_exc_not_instr_li ? fe_exc_partial_li : issue_pkt_cast_o.partial;
-      dispatch_pkt_cast_o.rs1        = be_exc_not_instr_li ? be_exc_vaddr_li   : fe_exc_not_instr_li ? fe_exc_vaddr_li   : issue_pkt_cast_o.decode.frs1_r_v ? frf_rs1 : irf_rs1;
-      dispatch_pkt_cast_o.rs2        = be_exc_not_instr_li ? be_exc_data_li    : fe_exc_not_instr_li ? fe_exc_data_li    : issue_pkt_cast_o.decode.frs2_r_v ? frf_rs2 : irf_rs2;
-      dispatch_pkt_cast_o.imm        = be_exc_not_instr_li ? be_exc_imm_li     : fe_exc_not_instr_li ? fe_exc_imm_li     : issue_pkt_cast_o.decode.frs3_r_v ? frf_rs3 : issue_pkt_cast_o.imm;
-      dispatch_pkt_cast_o.decode     = be_exc_not_instr_li ? be_exc_decode_li  : fe_exc_not_instr_li ? fe_exc_decode_li  : issue_pkt_cast_o.decode;
+      dispatch_pkt_cast_lo = '0;
+      dispatch_pkt_cast_lo.v          = (fe_queue_read_li & ~poison_isd_i) || be_exc_not_instr_li;
+      dispatch_pkt_cast_lo.queue_v    = (fe_queue_read_li & ~poison_isd_i);  // comes from front end
+      dispatch_pkt_cast_lo.instr_v    = fe_instr_not_exc_li; // is it an instruction
+      dispatch_pkt_cast_lo.ispec_v    = fe_instr_not_exc_li & ispec_v_i; // speculative instr for second chance alu, dont worry
+      dispatch_pkt_cast_lo.nspec_v    = be_exc_not_instr_li; // non speculative instruciton (injected instruction) (we inject non-speculative)
+      dispatch_pkt_cast_lo.pc         = expected_npc_i;
+      dispatch_pkt_cast_lo.instr      = be_exc_not_instr_li ? be_exc_instr_li   : fe_exc_not_instr_li ? fe_exc_instr_li   : issue_pkt_cast_o.instr;
+      dispatch_pkt_cast_lo.partial    = be_exc_not_instr_li ? be_exc_partial_li : fe_exc_not_instr_li ? fe_exc_partial_li : issue_pkt_cast_o.partial;
+      dispatch_pkt_cast_lo.rs1        = be_exc_not_instr_li ? be_exc_vaddr_li   : fe_exc_not_instr_li ? fe_exc_vaddr_li   : issue_pkt_cast_o.decode.frs1_r_v ? frf_rs1 : irf_rs1;
+      dispatch_pkt_cast_lo.rs2        = be_exc_not_instr_li ? be_exc_data_li    : fe_exc_not_instr_li ? fe_exc_data_li    : issue_pkt_cast_o.decode.frs2_r_v ? frf_rs2 : irf_rs2;
+      dispatch_pkt_cast_lo.imm        = be_exc_not_instr_li ? be_exc_imm_li     : fe_exc_not_instr_li ? fe_exc_imm_li     : issue_pkt_cast_o.decode.frs3_r_v ? frf_rs3 : issue_pkt_cast_o.imm;
+      dispatch_pkt_cast_lo.decode     = be_exc_not_instr_li ? be_exc_decode_li  : fe_exc_not_instr_li ? fe_exc_decode_li  : issue_pkt_cast_o.decode;
 
-      dispatch_pkt_cast_o.exception.instr_page_fault |= be_exc_not_instr_li & ptw_instr_page_fault_lo;
-      dispatch_pkt_cast_o.exception.load_page_fault  |= be_exc_not_instr_li & ptw_load_page_fault_lo;
-      dispatch_pkt_cast_o.exception.store_page_fault |= be_exc_not_instr_li & ptw_store_page_fault_lo;
-      dispatch_pkt_cast_o.exception.itlb_fill        |= be_exc_not_instr_li & ptw_itlb_fill_lo;
-      dispatch_pkt_cast_o.exception.dtlb_fill        |= be_exc_not_instr_li & ptw_dtlb_fill_lo;
-      dispatch_pkt_cast_o.exception.resume           |= be_exc_not_instr_li & resume_v;
-      dispatch_pkt_cast_o.exception._interrupt       |= be_exc_not_instr_li & interrupt_v;
+      dispatch_pkt_cast_lo.exception.instr_page_fault |= be_exc_not_instr_li & ptw_instr_page_fault_lo;
+      dispatch_pkt_cast_lo.exception.load_page_fault  |= be_exc_not_instr_li & ptw_load_page_fault_lo;
+      dispatch_pkt_cast_lo.exception.store_page_fault |= be_exc_not_instr_li & ptw_store_page_fault_lo;
+      dispatch_pkt_cast_lo.exception.itlb_fill        |= be_exc_not_instr_li & ptw_itlb_fill_lo;
+      dispatch_pkt_cast_lo.exception.dtlb_fill        |= be_exc_not_instr_li & ptw_dtlb_fill_lo;
+      dispatch_pkt_cast_lo.exception.resume           |= be_exc_not_instr_li & resume_v;
+      dispatch_pkt_cast_lo.exception._interrupt       |= be_exc_not_instr_li & interrupt_v;
 
-      dispatch_pkt_cast_o.exception.instr_access_fault |= fe_exc_not_instr_li & issue_pkt_cast_o.instr_access_fault;
-      dispatch_pkt_cast_o.exception.instr_page_fault   |= fe_exc_not_instr_li & issue_pkt_cast_o.instr_page_fault;
-      dispatch_pkt_cast_o.exception.itlb_miss          |= fe_exc_not_instr_li & issue_pkt_cast_o.itlb_miss;
-      dispatch_pkt_cast_o.exception.icache_miss        |= fe_exc_not_instr_li & issue_pkt_cast_o.icache_miss;
-      dispatch_pkt_cast_o.exception.illegal_instr      |= fe_exc_not_instr_li & issue_pkt_cast_o.illegal_instr;
+      dispatch_pkt_cast_lo.exception.instr_access_fault |= fe_exc_not_instr_li & issue_pkt_cast_o.instr_access_fault;
+      dispatch_pkt_cast_lo.exception.instr_page_fault   |= fe_exc_not_instr_li & issue_pkt_cast_o.instr_page_fault;
+      dispatch_pkt_cast_lo.exception.itlb_miss          |= fe_exc_not_instr_li & issue_pkt_cast_o.itlb_miss;
+      dispatch_pkt_cast_lo.exception.icache_miss        |= fe_exc_not_instr_li & issue_pkt_cast_o.icache_miss;
+      dispatch_pkt_cast_lo.exception.illegal_instr      |= fe_exc_not_instr_li & issue_pkt_cast_o.illegal_instr;
 
-      dispatch_pkt_cast_o.exception.ecall_m       |= fe_instr_not_exc_li & issue_pkt_cast_o.ecall_m;
-      dispatch_pkt_cast_o.exception.ecall_s       |= fe_instr_not_exc_li & issue_pkt_cast_o.ecall_s;
-      dispatch_pkt_cast_o.exception.ecall_u       |= fe_instr_not_exc_li & issue_pkt_cast_o.ecall_u;
-      dispatch_pkt_cast_o.exception.ebreak        |= fe_instr_not_exc_li & issue_pkt_cast_o.ebreak;
-      dispatch_pkt_cast_o.special.dbreak          |= fe_instr_not_exc_li & issue_pkt_cast_o.dbreak;
-      dispatch_pkt_cast_o.special.dret            |= fe_instr_not_exc_li & issue_pkt_cast_o.dret;
-      dispatch_pkt_cast_o.special.mret            |= fe_instr_not_exc_li & issue_pkt_cast_o.mret;
-      dispatch_pkt_cast_o.special.sret            |= fe_instr_not_exc_li & issue_pkt_cast_o.sret;
-      dispatch_pkt_cast_o.special.wfi             |= fe_instr_not_exc_li & issue_pkt_cast_o.wfi;
-      dispatch_pkt_cast_o.special.sfence_vma      |= fe_instr_not_exc_li & issue_pkt_cast_o.sfence_vma;
-      dispatch_pkt_cast_o.special.fencei          |= fe_instr_not_exc_li & issue_pkt_cast_o.fencei;
-      dispatch_pkt_cast_o.special.csrw            |= fe_instr_not_exc_li & issue_pkt_cast_o.csrw;
+      dispatch_pkt_cast_lo.exception.ecall_m       |= fe_instr_not_exc_li & issue_pkt_cast_o.ecall_m;
+      dispatch_pkt_cast_lo.exception.ecall_s       |= fe_instr_not_exc_li & issue_pkt_cast_o.ecall_s;
+      dispatch_pkt_cast_lo.exception.ecall_u       |= fe_instr_not_exc_li & issue_pkt_cast_o.ecall_u;
+      dispatch_pkt_cast_lo.exception.ebreak        |= fe_instr_not_exc_li & issue_pkt_cast_o.ebreak;
+      dispatch_pkt_cast_lo.special.dbreak          |= fe_instr_not_exc_li & issue_pkt_cast_o.dbreak;
+      dispatch_pkt_cast_lo.special.dret            |= fe_instr_not_exc_li & issue_pkt_cast_o.dret;
+      dispatch_pkt_cast_lo.special.mret            |= fe_instr_not_exc_li & issue_pkt_cast_o.mret;
+      dispatch_pkt_cast_lo.special.sret            |= fe_instr_not_exc_li & issue_pkt_cast_o.sret;
+      dispatch_pkt_cast_lo.special.wfi             |= fe_instr_not_exc_li & issue_pkt_cast_o.wfi;
+      dispatch_pkt_cast_lo.special.sfence_vma      |= fe_instr_not_exc_li & issue_pkt_cast_o.sfence_vma;
+      dispatch_pkt_cast_lo.special.fencei          |= fe_instr_not_exc_li & issue_pkt_cast_o.fencei;
+      dispatch_pkt_cast_lo.special.csrw            |= fe_instr_not_exc_li & issue_pkt_cast_o.csrw;
     end
 
 
   logic start_discovery_lo, confirm_discovery_lo;
-  logic [vaddr_width_p-1:0] striding_pc_lo;
+  logic [vaddr_width_p-1:0] striding_pc_lo, pref_pc_lo;
   logic loop_v_o;
-  logic instr_gen_ready_and_o;
+  logic pref_ready_and_lo;
   logic [output_range_lp-1:0] remaining_iteratons_lo;
-  logic [stride_width_p-1:0] stride_lo;
-  logic [vaddr_width_p-1:0] eff_addr_lo;
+  logic [stride_width_p-1:0] stride_lo, pref_stride_lo;
+  logic [vaddr_width_p-1:0] eff_addr_lo, pref_eff_addr_lo;
+  logic pref_v_lo;
+  bp_be_dispatch_pkt_s pref_dispatch_pkt;
 
   bp_be_loop_inference
    #(.bp_params_p(bp_params_p)
@@ -286,7 +288,9 @@ module bp_be_scheduler
     ,.reset_i(reset_i)
 
     ,.instr_i(preissue_instr)
-    ,.instr_v_i(dispatch_pkt_cast_o.v & dispatch_pkt_cast_o.instr_v)
+    ,.eff_addr_i(eff_addr_lo)
+    ,.stride_i(stride_lo)
+    ,.instr_v_i(dispatch_pkt_cast_lo.v & dispatch_pkt_cast_lo.instr_v)
     ,.rs1_i(irf_rs1)
     ,.rs2_i(irf_rs2)
 
@@ -297,7 +301,10 @@ module bp_be_scheduler
     ,.striding_pc_i(striding_pc_lo)
 
     ,.remaining_iteratons_o(remaining_iteratons_lo)
-    ,.yumi_i(instr_gen_ready_and_o | 1'b1) // TODO: change this when we implement instruction insertion
+    ,.pc_o(pref_pc_lo)
+    ,.eff_addr_o(pref_eff_addr_lo)
+    ,.stride_o(pref_stride_lo)
+    ,.yumi_i(pref_ready_and_lo)
     ,.v_o(loop_v_o)
     );
   
@@ -310,7 +317,7 @@ module bp_be_scheduler
     ,.reset_i(reset_i)
 
     ,.instr_i(preissue_instr)
-    ,.instr_v_i(dispatch_pkt_cast_o.v & dispatch_pkt_cast_o.instr_v)
+    ,.instr_v_i(dispatch_pkt_cast_lo.v & dispatch_pkt_cast_lo.instr_v)
     ,.rs1_i(irf_rs1)
 
     ,.npc_i(expected_npc_i)
@@ -321,7 +328,27 @@ module bp_be_scheduler
     ,.eff_addr_o(eff_addr_lo)
     ,.stride_o(stride_lo)
     );
+  
+  bp_be_prefetch_generator
+    #(.loop_range_p(output_range_lp)
+     ,.stride_width_p(stride_width_p))
+    prefetch_generator
+    (.clk_i(clk_i)
+    ,.reset_i(reset_i)
 
+    ,.pc_i(pref_pc_lo)
+    ,.loop_counter_i(remaining_iteratons_lo)
+    ,.eff_addr_i(pref_eff_addr_lo)
+    ,.stride_i(pref_stride_lo)
+
+    ,.v_i(loop_v_o)
+    ,.ready_and_o(pref_ready_and_lo)
+    ,.yumi_i(~dispatch_pkt_cast_lo.v)
+    ,.v_o(pref_v_lo)
+    ,.dispatch_pkt_o(pref_dispatch_pkt)
+    );
+
+  assign dispatch_pkt_cast_o = dispatch_pkt_cast_lo.v | ~pref_v_lo ? distpatch_pkt_cast_lo : pref_dispatch_pkt;
 
 endmodule
 

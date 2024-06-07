@@ -15,13 +15,11 @@ module bp_be_prefetch_generator
 
    , parameter loop_range_p = 8 // width of output amount
    , parameter stride_width_p = 8
-   , localparam dcache_block_width_p
-   , localparam default_loop_size_lp = 128
+   , localparam block_width_p = dcache_block_width_p
    )
    (input                                            clk_i
    , input                                           reset_i
 
-   , input  rv64_instr_fmatype_s                     instr_i
    , input  logic [vaddr_width_p-1:0]                pc_i
    , input  logic [loop_range_p-1:0]                 loop_counter_i
    , input  logic [dpath_width_gp-1:0]               eff_addr_i
@@ -30,66 +28,125 @@ module bp_be_prefetch_generator
   // Striding load interface
    , input  logic                                    v_i
    , output logic                                    ready_and_o
+
+  // Dispatch pkt interface
    , input  logic                                    yumi_i
    , output logic                                    v_o
+   , output logic [dispatch_pkt_width_lp-1:0]        dispatch_pkt_o
 
    );
 
-  // immediate offset for branch instruction
-  logic [dword_width_gp-1:0] imm_n, imm_r;
+  `bp_cast_o(bp_be_dispatch_pkt_s, dispatch_pkt);
+  `bp_cast_i(rv64_instr_ftype_s, instr);
 
   // Store the register values for the first and second time we see each branch
-  logic [dpath_width_gp-1:0] rs1_r, rs2_r, rs1_r2, rs2_r2;
-
-  // Keep striding pc to filter out any branches that don't have our desired target
-  logic [vaddr_width_p-1:0] striding_pc_r, branch_pc_r, branch_pc_n;
-
-  // If we confirm the discovery mode, we don't want to be interrupted until we finish prediction.
-  logic confirm_discovery_r, confirm_discovery_n;
-
-  // Change the order of operands for LT and LTU to only implement GE/GEU
-  logic swap_ops, swap_ops_r, swap_ops_n;
-
-  // output value
-  logic [output_range_p-1:0] remaining_iteratons_n;
-
-  // final branch op register holds branch op for the final scouted branch instruction
-  bp_be_int_fu_op_e branch_op_n, branch_op_r, f_branch_op_r;
-
-  // Registers to store the denominator and distance values for output calculation
-  logic [dpath_width_gp-1:0] denom_r, rdist_r;
-
-  logic [vaddr_width_p-1:0] taken_tgt;
+  logic [dpath_width_gp-1:0] eff_addr_r, eff_addr_n;
+  logic [stride_width_p-1:0] stride_r;
+  logic [vaddr_width_p-1:0]  pc_r;
+  logic [loop_range_p-1:0]   loop_counter_r;
 
   logic [2:0] state_n, state_r;
+
+  logic [vaddr_width_p-`BSG_SAFE_CLOG2(block_width_p)-1:0] prev_block_n, prev_block_r;
 
   bsg_counter_set_down
     #(.width_p(loop_range_p))
     remaining_prefetches_ctr
       (.clk_i(clk_i)
       ,.reset_i(reset_i)
-      ,.set_i()
+      ,.set_i(v_i)
       ,.val_i(loop_counter_i)
-      ,.down_i(ready_and_o & v_i)
-      ,.count_r_o()
+      ,.down_i((ready_and_o & v_i) || (state_r == 3'b001 && prev_block_n == prev_block_r))
+      ,.count_r_o(loop_counter_r)
       );
 
   always_ff @(posedge clk_i) begin
     if (reset_i) begin
       state_r <= '0;
     end else begin
+        case (state_r)
+          3'b000: begin
+            stride_r <= stride_i;
+            prev_block_r <= eff_addr_i[vaddr_width_p-1:`BSG_SAFE_CLOG2(block_width_p)];
+            eff_addr_r <= eff_addr_i;
+            pc_r <= pc_i;
+            instr_r <= instr_cast_i;
+          end
+          3'b001: begin
+            prev_block_r <= prev_block_n;
+            eff_addr_r <= eff_addr_n;
+          end
+          3'b010: begin
 
+          end
+          default: 
+        endcase
+        state_r <= state_n;
     end
   end
 
+
+  assign eff_addr_n = eff_addr_r + stride_r;
+  assign prev_block_n = eff_addr_n[vaddr_width_p-1:`BSG_SAFE_CLOG2(block_width_p)];
 
   // FSM
   always_comb begin
     state_n = 3'b000;
     case(state_r)
-      3'b000:
+      // wait
+      3'b000: begin
+        state_n = v_i ? 3'b001 : 3'b000;
+      end
+      // latched prefetch info, iterate stride and loop count until next block
+      3'b001: begin
+        state_n = loop_counter_r == 0 ? 3'b000 : prev_block_r == prev_block_n ? 3'b001 : 3'b010;
+      end
+      // Send prefetch
+      3'b010: begin
+        state_n = yumi_i ? 3'b001 : 3'b010;
+      end
     endcase
   end
 
+
+  rv64_instr_stype_s instr;
+  always_comb
+    begin // prefetch.r specification CMO ext
+      instr.imm11to5  = '0;
+      instr.rs2       = 5'b00001;
+      instr.rs1_addr  = '0;
+      instr.funct3    = 3'b110;
+      instr.rd_addr   = '0;
+      instr.opcode    = `RV64_OP_IMM_OP;
+    end
+
+
+  bp_be_decode_s decode;
+  always_comb
+    begin
+      decode.pipe_mem_early_v = 1'b1;
+      decode.irf_w_v          = 1'b0;
+      decode.spec_w_v         = 1'b1;
+      decode.score_v          = 1'b1;
+      decode.dcache_r_v       = 1'b1;
+      decode.mem_v            = 1'b1;
+      decode.fu_op  = e_dcache_op_lb;
+      decode.prefetch         = 1'b1;
+    end
+
+  always_comb
+    begin
+      // Form dispatch packet
+      dispatch_pkt_cast_o = '0;
+      dispatch_pkt_cast_o.v          = 1'b1;
+      dispatch_pkt_cast_o.nspec_v    = 1'b1;
+      dispatch_pkt_cast_o.pc         = pc_r;
+      dispatch_pkt_cast_o.instr      = instr;
+      dispatch_pkt_cast_o.rs1        = eff_addr_r;
+      dispatch_pkt_cast_o.decode     = decode;
+    end
+
+  assign ready_and_o = state_r == 3'b000;
+  assign v_o         = state_r == 3'b010;
 
 endmodule
