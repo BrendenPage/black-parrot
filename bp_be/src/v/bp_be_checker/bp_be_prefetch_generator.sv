@@ -95,7 +95,7 @@ module bp_be_prefetch_generator
     case(state_r)
       // wait
       3'b000: begin
-        state_n = v_i ? 3'b001 : 3'b000;
+        state_n = v_i && loop_counter_i != '0 ? 3'b001 : 3'b000;
       end
       // latched prefetch info, iterate stride and loop count until next block
       3'b001: begin
@@ -103,7 +103,7 @@ module bp_be_prefetch_generator
       end
       // Send prefetch
       3'b010: begin
-        state_n = yumi_i ? 3'b001 : 3'b010;
+        state_n = yumi_i ? loop_counter_r == 3'b000 ? 3'b000 : 3'b001 : 3'b010;
       end
     endcase
   end
