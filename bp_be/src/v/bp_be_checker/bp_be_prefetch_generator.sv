@@ -133,7 +133,7 @@ module bp_be_prefetch_generator
       decode.fu_op  = e_dcache_op_lb;
       decode.prefetch         = 1'b1;
       decode.irs1_tag         = e_int_word;
-      decode.irsd_tag         = e_int_word;
+      decode.ird_tag          = e_int_word;
     end
 
   always_comb
