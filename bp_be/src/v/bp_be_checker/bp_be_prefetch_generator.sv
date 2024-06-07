@@ -40,7 +40,7 @@ module bp_be_prefetch_generator
   `declare_bp_be_internal_if_structs(vaddr_width_p, paddr_width_p, asid_width_p, branch_metadata_fwd_width_p);
 
   `bp_cast_o(bp_be_dispatch_pkt_s, dispatch_pkt);
-  `bp_cast_i(rv64_instr_ftype_s, instr);
+  // `bp_cast_i(rv64_instr_ftype_s, instr);
 
   // Store the register values for the first and second time we see each branch
   logic [dpath_width_gp-1:0] eff_addr_r, eff_addr_n;
@@ -73,16 +73,12 @@ module bp_be_prefetch_generator
             prev_block_r <= eff_addr_i[vaddr_width_p-1:`BSG_SAFE_CLOG2(block_width_p)];
             eff_addr_r <= eff_addr_i;
             pc_r <= pc_i;
-            instr_r <= instr_cast_i;
+            // instr_r <= instr_cast_i;
           end
           3'b001: begin
             prev_block_r <= prev_block_n;
             eff_addr_r <= eff_addr_n;
           end
-          3'b010: begin
-
-          end
-          default: 
         endcase
         state_r <= state_n;
     end
