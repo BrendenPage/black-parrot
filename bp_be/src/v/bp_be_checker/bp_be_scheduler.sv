@@ -350,7 +350,7 @@ module bp_be_scheduler
     ,.dispatch_pkt_o(pref_dispatch_pkt)
     );
 
-  assign dispatch_pkt_cast_o = dispatch_pkt_cast_lo.v | ~pref_v_lo ? distpatch_pkt_cast_lo : pref_dispatch_pkt;
+  assign dispatch_pkt_cast_o = dispatch_pkt_cast_lo.v | ~pref_v_lo ? dispatch_pkt_cast_lo : pref_dispatch_pkt;
 
 endmodule
 
