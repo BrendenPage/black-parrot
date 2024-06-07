@@ -281,6 +281,20 @@ module bp_be_scheduler
   logic [vaddr_width_p-1:0] eff_addr_lo, pref_eff_addr_lo;
   logic pref_v_lo;
   bp_be_dispatch_pkt_s pref_dispatch_pkt;
+  logic [`BSG_SAFE_CLOG2(100)-1:0] test_ctr;
+
+  bsg_counter_clear_up #(.max_val_p(100)
+			      // this originally had an "invalid" default value of -1
+			      // which is a bad choice for a counter
+			     ,.init_val_p(0)
+			     ,.disable_overflow_warning_p(1))
+   test_detector
+   (.clk_i(clk_i)
+    ,.reset_i(reset_i)
+    ,.clear_i(1'b0)
+    ,.up_i(dispatch_pkt_cast_lo.instr == 32'x0x006282b3 && dispatch_pkt_cast_lo.instr_v && dispatch_pkt_cast_lo.v)
+    ,.count_o(test_ctr)
+    );
 
   bp_be_loop_inference
    #(.bp_params_p(bp_params_p)
