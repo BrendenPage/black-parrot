@@ -333,7 +333,8 @@ module bp_be_scheduler
   
   bp_be_prefetch_generator
     #(.loop_range_p(output_range_lp)
-     ,.stride_width_p(stride_width_p))
+     ,.stride_width_p(stride_width_p)
+     ,.effective_addr_width_p(vaddr_width_p))
     prefetch_generator
     (.clk_i(clk_i)
     ,.reset_i(reset_i)

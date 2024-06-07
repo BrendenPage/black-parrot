@@ -15,6 +15,7 @@ module bp_be_prefetch_generator
 
    , parameter loop_range_p = 8 // width of output amount
    , parameter stride_width_p = 8
+   , parameter effective_addr_width_p = vaddr_width_p
    , localparam block_width_p = dcache_block_width_p
    , localparam dispatch_pkt_width_lp = `bp_be_dispatch_pkt_width(vaddr_width_p)
    )
@@ -23,7 +24,7 @@ module bp_be_prefetch_generator
 
    , input  logic [vaddr_width_p-1:0]                pc_i
    , input  logic [loop_range_p-1:0]                 loop_counter_i
-   , input  logic [dpath_width_gp-1:0]               eff_addr_i
+   , input  logic [effective_addr_width_p-1:0]       eff_addr_i
    , input  logic [stride_width_p-1:0]               stride_i
 
   // Striding load interface
