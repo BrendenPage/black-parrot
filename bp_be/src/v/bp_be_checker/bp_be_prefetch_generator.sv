@@ -99,7 +99,7 @@ module bp_be_prefetch_generator
       end
       // latched prefetch info, iterate stride and loop count until next block
       3'b001: begin
-        state_n = loop_counter_r == 0 ? 3'b000 : prev_block_r == prev_block_n ? 3'b001 : 3'b010;
+        state_n = loop_counter_r == 1 && prev_block_r == prev_block_n ? 3'b000 : prev_block_r == prev_block_n ? 3'b001 : 3'b010;
       end
       // Send prefetch
       3'b010: begin
@@ -138,6 +138,7 @@ module bp_be_prefetch_generator
     begin
       // Form dispatch packet
       dispatch_pkt_cast_o = '0;
+      dispatch_pkt_cast_o.pc         = '1;
       dispatch_pkt_cast_o.v          = 1'b1;
       dispatch_pkt_cast_o.nspec_v    = 1'b1;
       dispatch_pkt_cast_o.pc         = pc_r;
