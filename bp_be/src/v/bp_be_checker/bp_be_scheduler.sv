@@ -292,7 +292,7 @@ module bp_be_scheduler
    (.clk_i(clk_i)
     ,.reset_i(reset_i)
     ,.clear_i(1'b0)
-    ,.up_i(dispatch_pkt_cast_lo.instr == 32'x006282b3  && dispatch_pkt_cast_lo.instr_v && dispatch_pkt_cast_lo.v)
+    ,.up_i(dispatch_pkt_cast_lo.instr == 32'h006282b3 && dispatch_pkt_cast_lo.instr_v && dispatch_pkt_cast_lo.v)
     ,.count_o(test_ctr)
     );
 
