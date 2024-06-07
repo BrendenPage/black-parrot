@@ -83,15 +83,15 @@ module bp_be_loop_inference
 
 
 
-  logic [`BSG_SAFE_CLOG2(discovery_misses_p)-1:0] skips_remaining;
+  logic [`BSG_SAFE_CLOG2(discovery_misses_p + 1)-1:0] skips_remaining;
   bsg_counter_set_down
-    #(.width_p(`BSG_SAFE_CLOG2(discovery_misses_p)))
+    #(.width_p(`BSG_SAFE_CLOG2(discovery_misses_p + 1)))
     discovery_cooldown
       (.clk_i(clk_i)
       ,.reset_i(reset_i)
       ,.set_i(state_r == 3'b010 && state_n == 3'b011)
       ,.val_i(discovery_misses_p)
-      ,.down_i(start_discovery_i & state_r == 3'b011)
+      ,.down_i(start_discovery_i & state_r == 3'b011 & striding_pc_i != striding_pc_r)
       ,.count_r_o(skips_remaining)
       );
 
