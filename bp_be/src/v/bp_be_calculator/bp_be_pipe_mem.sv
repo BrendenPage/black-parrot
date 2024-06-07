@@ -110,10 +110,12 @@ module bp_be_pipe_mem
   bp_be_reservation_s reservation;
   bp_be_decode_s      decode;
   rv64_instr_s        instr;
+  logic               prefetch;
 
   assign reservation = reservation_i;
   assign decode = reservation.decode;
   assign instr = reservation.instr;
+  assign prefetch = decode.prefetch;
   wire [vaddr_width_p-1:0] pc   = reservation.pc;
   wire [dword_width_gp-1:0] rs1 = reservation.isrc1;
   wire [dword_width_gp-1:0] rs2 = reservation.isrc2;

@@ -113,9 +113,9 @@ module bp_be_prefetch_generator
     begin // prefetch.r specification CMO ext
       instr.imm11to5  = '0;
       instr.rs2       = 5'b00001;
-      instr.rs1_addr  = '0;
+      instr.rs1       = '0;
       instr.funct3    = 3'b110;
-      instr.rd_addr   = '0;
+      instr.imm4to0   = '0;
       instr.opcode    = `RV64_OP_IMM_OP;
     end
 
