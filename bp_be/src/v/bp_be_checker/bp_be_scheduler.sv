@@ -76,6 +76,8 @@ module bp_be_scheduler
   `bp_cast_i(bp_be_wb_pkt_s, late_wb_pkt);
   `bp_cast_i(bp_be_trans_info_s, trans_info);
 
+  bp_be_dispatch_pkt_s dispatch_pkt_cast_lo;
+
   logic ptw_busy_lo;
   logic ptw_v_lo, ptw_walk_lo, ptw_itlb_fill_lo, ptw_dtlb_fill_lo, ptw_partial_lo;
   logic ptw_instr_page_fault_lo, ptw_load_page_fault_lo, ptw_store_page_fault_lo;
