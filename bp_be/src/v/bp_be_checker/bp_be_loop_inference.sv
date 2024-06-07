@@ -264,6 +264,6 @@ module bp_be_loop_inference
   end
 
   assign pc_o = striding_pc_r;
-  assign eff_addr_o <= eff_addr_r;
-  assign stride_o <= stride_r;
+  assign eff_addr_o = eff_addr_r;
+  assign stride_o = stride_r;
 endmodule
