@@ -16,6 +16,7 @@ module bp_be_loop_inference
    , parameter output_range_p = 8 // width of output amount
    , parameter effective_addr_width_p = vaddr_width_p
    , parameter stride_width_p = 8
+   , parameter discovery_misses_p = 8
    , localparam default_loop_size_lp = 128
    )
    (input                                            clk_i
@@ -79,6 +80,22 @@ module bp_be_loop_inference
   logic [vaddr_width_p-1:0] taken_tgt;
 
   logic [2:0] state_n, state_r;
+
+
+
+  logic [`BSG_SAFE_CLOG2(loop_range_p)-1:0] skips_remaining;
+  bsg_counter_set_down
+    #(.width_p(loop_range_p))
+    discovery_cooldown
+      (.clk_i(clk_i)
+      ,.reset_i(reset_i)
+      ,.set_i(state_r == 3'b010 && state_n == 3'b011)
+      ,.val_i(discovery_misses_p)
+      ,.down_i(start_discovery_i)
+      ,.count_r_o(skips_remaining)
+      );
+
+
 
   // bp_be_pipe_int ~90
 
@@ -239,6 +256,8 @@ module bp_be_loop_inference
         // We now are just waiting until we see the same branch again to compare register state
         if (npc_i == branch_pc_r) begin
           state_n = 3'b100;
+        end else if (skips_remaining == 0) begin
+          state_n = 3'b000;
         end else begin
           state_n = 3'b011;
           branch_pc_n = branch_pc_r;
