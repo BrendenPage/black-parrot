@@ -91,7 +91,7 @@ module bp_be_loop_inference
       ,.reset_i(reset_i)
       ,.set_i(state_r == 3'b010 && state_n == 3'b011)
       ,.val_i(discovery_misses_p)
-      ,.down_i(start_discovery_i)
+      ,.down_i(start_discovery_i & state_r == 3'b011)
       ,.count_r_o(skips_remaining)
       );
 
