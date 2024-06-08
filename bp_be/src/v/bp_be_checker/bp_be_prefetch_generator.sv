@@ -74,7 +74,6 @@ module bp_be_prefetch_generator
             prev_block_r <= eff_addr_i[vaddr_width_p-1:`BSG_SAFE_CLOG2(block_width_p)];
             eff_addr_r <= eff_addr_i;
             pc_r <= pc_i;
-            // instr_r <= instr_cast_i;
           end
           3'b001: begin
             prev_block_r <= prev_block_n;
@@ -124,6 +123,7 @@ module bp_be_prefetch_generator
   bp_be_decode_s decode;
   always_comb
     begin
+      decode = '0;
       decode.pipe_mem_early_v = 1'b1;
       decode.irf_w_v          = 1'b0;
       decode.spec_w_v         = 1'b1;
