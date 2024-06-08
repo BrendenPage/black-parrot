@@ -81,8 +81,8 @@ module bp_be_stride_detector
         // We haven't just tried to prefetch on this address
         prev_prefetch_addr_2 <= prev_prefetch_addr_1;
         prev_prefetch_addr_1 <= striding_pc_lo;
-        confirm_discovery_o <= confirm_discovery_lo;
-        start_discovery_o <= start_discovery_lo;
+        confirm_discovery_o <= confirm_discovery_lo & |stride_lo;
+        start_discovery_o <= start_discovery_lo & |stride_lo;
 
         striding_pc_o <= striding_pc_lo;
         eff_addr_o <= eff_addr_lo;
