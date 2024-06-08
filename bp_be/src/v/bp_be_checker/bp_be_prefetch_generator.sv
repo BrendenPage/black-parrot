@@ -124,15 +124,17 @@ module bp_be_prefetch_generator
   always_comb
     begin
       decode = '0;
+      // Pulled from decode of load instruction
       decode.pipe_mem_early_v = 1'b1;
       decode.irf_w_v          = 1'b0;
       decode.spec_w_v         = 1'b1;
-      decode.score_v          = 1'b1;
+      decode.score_v          = 1'b0;
       decode.dcache_r_v       = 1'b1;
       decode.mem_v            = 1'b1;
       decode.fu_op  = e_dcache_op_lb;
-      decode.prefetch         = 1'b1;
+      decode.prefetch         = 1'b1; // flag to prevent faults in MMU
       decode.irs1_tag         = e_int_word;
+      decode.irs1_unsigned    = 1'b1;
       decode.ird_tag          = e_int_word;
     end
 
