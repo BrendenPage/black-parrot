@@ -52,6 +52,7 @@ module bp_be_calculator_top
    , output logic [branch_pkt_width_lp-1:0]          br_pkt_o
    , output logic [wb_pkt_width_lp-1:0]              iwb_pkt_o
    , output logic [wb_pkt_width_lp-1:0]              fwb_pkt_o
+  //  , output logic [dpath_width_gp-1:0]               bypass_rs1_o
 
    , output logic [wb_pkt_width_lp-1:0]              late_wb_pkt_o
    , output logic                                    late_wb_v_o
@@ -176,6 +177,8 @@ module bp_be_calculator_top
          ,.data_o(bypass_rs[i])
          );
     end
+
+  assign bypass_rs1_o = bypass_rs[0];
 
   bp_be_reservation_s reservation_r;
   bp_be_reservation

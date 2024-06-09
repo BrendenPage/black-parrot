@@ -46,6 +46,7 @@ module bp_be_scheduler
    , input                                    poison_isd_i
    , input                                    ordered_v_i
    , input [trans_info_width_lp-1:0]          trans_info_i
+  //  , input [dpath_width_gp-1:0]               rs1_bypass_i
 
    // Fetch interface
    , input [fe_queue_width_lp-1:0]            fe_queue_i
@@ -320,11 +321,10 @@ module bp_be_scheduler
     (.clk_i(clk_i)
     ,.reset_i(reset_i)
 
-    ,.instr_i(preissue_instr)
-    ,.instr_v_i(dispatch_pkt_cast_lo.v & dispatch_pkt_cast_lo.instr_v)
-    ,.rs1_i(irf_rs1)
+    ,.instr_i(commit_pkt_cast_i.instr)
+    ,.eff_addr_i(commit_pkt_cast_i.vaddr)
 
-    ,.npc_i(expected_npc_i)
+    ,.pc_i(commit_pkt_cast_i.pc)
 
     ,.start_discovery_o(start_discovery_lo)
     ,.confirm_discovery_o(confirm_discovery_lo)
@@ -332,6 +332,27 @@ module bp_be_scheduler
     ,.eff_addr_o(eff_addr_lo)
     ,.stride_o(stride_lo)
     );
+
+  // bp_be_stride_detector
+  //   #(.bp_params_p(bp_params_p)
+  //     ,.stride_width_p(stride_width_p)
+  //     ,.effective_addr_width_p(vaddr_width_p))
+  //   stride_detector
+  //   (.clk_i(clk_i)
+  //   ,.reset_i(reset_i)
+
+  //   ,.instr_i(preissue_instr)
+  //   ,.instr_v_i(dispatch_pkt_cast_lo.v & dispatch_pkt_cast_lo.instr_v)
+  //   ,.rs1_i(irf_rs1)
+
+  //   ,.npc_i(expected_npc_i)
+
+  //   ,.start_discovery_o(start_discovery_lo)
+  //   ,.confirm_discovery_o(confirm_discovery_lo)
+  //   ,.striding_pc_o(striding_pc_lo)
+  //   ,.eff_addr_o(eff_addr_lo)
+  //   ,.stride_o(stride_lo)
+  //   );
   
   bp_be_prefetch_generator
     #(.loop_range_p(output_range_lp)

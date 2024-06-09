@@ -110,12 +110,10 @@ module bp_be_pipe_mem
   bp_be_reservation_s reservation;
   bp_be_decode_s      decode;
   rv64_instr_s        instr;
-  logic               prefetch;
 
   assign reservation = reservation_i;
   assign decode = reservation.decode;
   assign instr = reservation.instr;
-  assign prefetch = decode.prefetch;
   wire [vaddr_width_p-1:0] pc   = reservation.pc;
   wire [dword_width_gp-1:0] rs1 = reservation.isrc1;
   wire [dword_width_gp-1:0] rs2 = reservation.isrc2;
@@ -139,6 +137,7 @@ module bp_be_pipe_mem
   wire dtlb_r_cbo    = is_req & decode.dcache_cbo_v;
   wire dtlb_r_ptw    = is_req & decode.dcache_mmu_v;
   wire dtlb_r_v      = dtlb_r_store | dtlb_r_load | dtlb_r_cbo | dtlb_r_ptw;
+  wire prefetch = is_req & decode.prefetch;
 
   logic [vtag_width_p-1:0] dtlb_w_vtag;
   bp_pte_leaf_s dtlb_w_entry;
@@ -198,6 +197,7 @@ module bp_be_pipe_mem
      ,.r_store_i(dtlb_r_store)
      ,.r_cbo_i(dtlb_r_cbo)
      ,.r_ptw_i(dtlb_r_ptw)
+     ,.r_pftch_i(prefetch)
      ,.r_eaddr_i(eaddr)
      ,.r_size_i(dtlb_r_size)
 
