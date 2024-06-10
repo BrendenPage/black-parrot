@@ -15,7 +15,9 @@ module bp_be_prefetch_generator
 
    , parameter loop_range_p = 8 // width of output amount
    , parameter stride_width_p = 8
+   , parameter effective_addr_width_p = vaddr_width_p
    , localparam block_width_p = dcache_block_width_p
+   , localparam decode_width_lp = $bits(bp_be_decode_s)
    , localparam dispatch_pkt_width_lp = `bp_be_dispatch_pkt_width(vaddr_width_p)
    )
    (input                                            clk_i
@@ -23,7 +25,7 @@ module bp_be_prefetch_generator
 
    , input  logic [vaddr_width_p-1:0]                pc_i
    , input  logic [loop_range_p-1:0]                 loop_counter_i
-   , input  logic [vaddr_width_p-1:0]                eff_addr_i
+   , input  logic [effective_addr_width_p-1:0]       eff_addr_i
    , input  logic [vaddr_width_p-1:0]                commit_pc_i
    , input  logic [stride_width_p-1:0]               stride_i
 
@@ -34,24 +36,27 @@ module bp_be_prefetch_generator
   // Dispatch pkt interface
    , input  logic                                    yumi_i
    , output logic                                    v_o
-   , output logic [dispatch_pkt_width_lp-1:0]        dispatch_pkt_o
+   , output logic [rv64_instr_width_gp-1:0]          instr_o
+   , output logic [decode_width_lp-1:0]              decode_o
+   , output logic [vaddr_width_p-1:0]                eff_addr_o
+  //  , output logic [dispatch_pkt_width_lp-1:0]        dispatch_pkt_o
 
    );
 
   `declare_bp_be_internal_if_structs(vaddr_width_p, paddr_width_p, asid_width_p, branch_metadata_fwd_width_p);
 
-  `bp_cast_o(bp_be_dispatch_pkt_s, dispatch_pkt);
+  // `bp_cast_o(bp_be_dispatch_pkt_s, dispatch_pkt);
   // `bp_cast_i(rv64_instr_ftype_s, instr);
 
   // Store the register values for the first and second time we see each branch
-  logic [vaddr_width_p-1:0] eff_addr_r, eff_addr_n, eff_addr_r_lo;
+  logic [effective_addr_width_p-1:0] eff_addr_r, eff_addr_n, eff_addr_r_lo;
   logic [stride_width_p-1:0] stride_r;
   logic [vaddr_width_p-1:0]  pc_r;
   logic [loop_range_p-1:0]   loop_counter_r;
 
   logic [2:0] state_n, state_r;
 
-  logic [vaddr_width_p-`BSG_SAFE_CLOG2(block_width_p)-1:0] prev_block_n, prev_block_r;
+  logic [effective_addr_width_p -`BSG_SAFE_CLOG2(block_width_p)-1:0] prev_block_n, prev_block_r;
   logic decr_count_r;
 
   bsg_counter_set_down
@@ -163,19 +168,9 @@ module bp_be_prefetch_generator
       decode.ird_tag          = e_int_word;
     end
 
-  always_comb
-    begin
-      // Form dispatch packet
-      dispatch_pkt_cast_o = '0;
-      dispatch_pkt_cast_o.pc         = '1;
-      dispatch_pkt_cast_o.v          = 1'b1;
-      dispatch_pkt_cast_o.nspec_v    = 1'b1;
-      dispatch_pkt_cast_o.pc         = pc_r;
-      dispatch_pkt_cast_o.instr      = instr;
-      dispatch_pkt_cast_o.rs1        = eff_addr_r_lo;
-      dispatch_pkt_cast_o.decode     = decode;
-    end
-
+  assign instr_o     = instr;
+  assign decode_o    = decode;
+  assign eff_addr_o  = eff_addr_r_lo;
   assign ready_and_o = state_r == 3'b000;
   assign v_o         = state_r == 3'b010;
 

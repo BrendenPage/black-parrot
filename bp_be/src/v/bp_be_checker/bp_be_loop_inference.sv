@@ -37,7 +37,7 @@ module bp_be_loop_inference
   // writeback packet for register snooping
    , input [wb_pkt_width_lp-1:0]                     iwb_pkt_i
 
-   , input  logic [rv64_instr_width_gp-1:0]          instr_i
+   , input logic [rv64_instr_width_gp-1:0]           instr_i
    , input logic [vaddr_width_p-1:0]                 pc_i
    , input logic [vaddr_width_p-1:0]                 vaddr_i
    , input logic [vaddr_width_p-1:0]                 npc_i

@@ -25,7 +25,7 @@ module bp_be_stride_detector
 
   // Instruction interface
    , input  logic [rv64_instr_width_gp-1:0]          instr_i
-   , input  logic [vaddr_width_p-1:0]                eff_addr_i
+   , input  logic [effective_addr_width_p-1:0]       eff_addr_i
 
    // Second cycle input
    , input  logic [vaddr_width_p-1:0]                pc_i
@@ -47,10 +47,6 @@ module bp_be_stride_detector
   // Is the instruction we are looking at a load instruction
   logic load_instr_v_n;
 
-  // Set the immediate from the predecode packet to latch for next cycle
-  // target computation and comparison
-  // wire  [effective_addr_width_p-1:0] effective_addr_n = rs1_i + imm;
-
   logic [vaddr_width_p-1:0] striding_pc_lo;
 
   logic [stride_width_p-1:0] stride_lo;
@@ -62,7 +58,6 @@ module bp_be_stride_detector
   logic [vaddr_width_p-1:0] pc_prev_r; // to use as a pseudo instr_v_i
   logic load_instr_v_r;
   always_ff @(posedge clk_i) begin
-    // eff_addr_r <= effective_addr_n;
     load_instr_v_r <= load_instr_v_n;
   end
 
