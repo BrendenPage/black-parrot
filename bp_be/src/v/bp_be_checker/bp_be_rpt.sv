@@ -152,7 +152,7 @@ module bp_be_rpt
   wire [stride_width_p-1:0] stride_2 = r_data_lo[rpt_entry_width_lp + stride_width_p+rpt_ctr_width_lp : rpt_entry_width_lp + rpt_ctr_width_lp + 1];
 
   assign effective_addr_lo = |tag_match ? tag_match[0] ? effective_addr_1 : effective_addr_2 : '0;
-  wire [effective_addr_width_p-1:0] addr_diff = eff_addr_i - effective_addr_lo; // todo why eff addr i
+  wire [effective_addr_width_p-1:0] addr_diff = eff_addr_r - effective_addr_lo; // todo why eff addr i
   assign stride_li = addr_diff[stride_width_p-1:0];
 
 
@@ -169,8 +169,8 @@ module bp_be_rpt
   wire lru_n = tag_match[0] ? 1'b1 : tag_match[1] ? 1'b0 : ~lru;
 
   // Compile data
-  assign w_data_1 = (&(~tag_match) & ~lru) | tag_match[0] ? {tag_li, eff_addr_i, stride_li, ctr_1_n} : r_data_lo[rpt_entry_width_lp:1]; // todo why eff addr i
-  assign w_data_2 = (&(~tag_match) & lru) | tag_match[1] ? {tag_li, eff_addr_i, stride_li, ctr_2_n} : r_data_lo[rpt_row_width_lp-1:rpt_entry_width_lp]; // todo why eff addr i
+  assign w_data_1 = (&(~tag_match) & ~lru) | tag_match[0] ? {tag_li, eff_addr_r, stride_li, ctr_1_n} : r_data_lo[rpt_entry_width_lp:1]; // todo why eff addr i
+  assign w_data_2 = (&(~tag_match) & lru) | tag_match[1] ? {tag_li, eff_addr_r, stride_li, ctr_2_n} : r_data_lo[rpt_row_width_lp-1:rpt_entry_width_lp]; // todo why eff addr i
   assign w_data_li = is_clear ? '0 : {w_data_2, w_data_1, lru_n};
 
 

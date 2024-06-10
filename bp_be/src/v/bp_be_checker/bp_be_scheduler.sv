@@ -143,7 +143,6 @@ module bp_be_scheduler
   assign late_wb_yumi_o = writeback_v;
 
 
-  // Get our instructions from here (todo: remove this comment)
   bp_be_preissue_pkt_s preissue_pkt;
   bp_be_issue_queue
    #(.bp_params_p(bp_params_p))
@@ -287,19 +286,26 @@ module bp_be_scheduler
 
   bp_be_loop_inference
    #(.bp_params_p(bp_params_p)
-    ,.output_range_p(output_range_lp))
+    ,.output_range_p(output_range_lp)
+    ,.register_width_p($bits(bp_be_int_reg_s)))
    loop_profiler
     (.clk_i(clk_i)
     ,.reset_i(reset_i)
 
-    ,.instr_i(preissue_instr)
     ,.eff_addr_i(eff_addr_lo)
     ,.stride_i(stride_lo)
-    ,.instr_v_i(dispatch_pkt_cast_lo.v & dispatch_pkt_cast_lo.instr_v)
+
+    ,.preissue_instr_i(preissue_instr)
     ,.rs1_i(irf_rs1)
     ,.rs2_i(irf_rs2)
+    ,.preissue_npc_i(expected_npc_i)
 
-    ,.npc_i(expected_npc_i)
+    ,.iwb_pkt_i(iwb_pkt_i)
+
+    ,.instr_i(commit_pkt_cast_i.instr)
+    ,.pc_i(commit_pkt_cast_i.pc)
+    ,.npc_i(commit_pkt_cast_i.npc)
+    ,.vaddr_i(commit_pkt_cast_i.vaddr)
 
     ,.start_discovery_i(start_discovery_lo)
     ,.confirm_discovery_i(confirm_discovery_lo)
@@ -356,13 +362,13 @@ module bp_be_scheduler
   
   bp_be_prefetch_generator
     #(.loop_range_p(output_range_lp)
-     ,.stride_width_p(stride_width_p)
-     ,.effective_addr_width_p(vaddr_width_p))
+     ,.stride_width_p(stride_width_p))
     prefetch_generator
     (.clk_i(clk_i)
     ,.reset_i(reset_i)
 
     ,.pc_i(pref_pc_lo)
+    ,.commit_pc_i(commit_pkt_cast_i.pc)
     ,.loop_counter_i(remaining_iteratons_lo)
     ,.eff_addr_i(pref_eff_addr_lo)
     ,.stride_i(pref_stride_lo)

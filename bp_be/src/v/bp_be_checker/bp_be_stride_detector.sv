@@ -26,12 +26,9 @@ module bp_be_stride_detector
   // Instruction interface
    , input  logic [rv64_instr_width_gp-1:0]          instr_i
    , input  logic [vaddr_width_p-1:0]                eff_addr_i
-  //  , input  logic [dpath_width_gp-1:0]               rs1_i
 
    // Second cycle input
-  //  , input  logic [vaddr_width_p-1:0]                npc_i
    , input  logic [vaddr_width_p-1:0]                pc_i
-  //  , input  logic                                    instr_v_i
 
   // Output interface
    , output  logic                                   start_discovery_o
@@ -62,6 +59,7 @@ module bp_be_stride_detector
 
   // Need to latch inputs to rpt as the pc comes in next cycle
   logic [effective_addr_width_p-1:0] eff_addr_r, eff_addr_lo;
+  logic [vaddr_width_p-1:0] pc_prev_r; // to use as a pseudo instr_v_i
   logic load_instr_v_r;
   always_ff @(posedge clk_i) begin
     // eff_addr_r <= effective_addr_n;
@@ -73,7 +71,9 @@ module bp_be_stride_detector
       start_discovery_o    <= '0;
       confirm_discovery_o  <= '0;
       striding_pc_o        <= '0;
+      pc_prev_r            <= '0;
     end else begin
+      pc_prev_r <= pc_i;
       if (confirm_discovery_lo || start_discovery_lo) begin
         confirm_discovery_o <= confirm_discovery_lo & |stride_lo;
         start_discovery_o <= start_discovery_lo & |stride_lo;
@@ -91,28 +91,6 @@ module bp_be_stride_detector
     end
   end
 
-
-  // bp_be_rpt #(.rpt_sets_p(rpt_sets_p)
-  //             ,.stride_width_p(stride_width_p)
-  //             ,.effective_addr_width_p(effective_addr_width_p))
-  //   rpt
-  //   (.clk_i(clk_i)
-  //     ,.reset_i(reset_i)
-
-  //     ,.init_done_o() // ignore
-  //     ,.w_v_i(load_instr_v_r & instr_v_i)
-  //     ,.pc_i(npc_i)
-  //     ,.eff_addr_i(eff_addr_r)
-  //     ,.eff_addr_o(eff_addr_lo)
-
-  //     ,.stride_o(stride_lo)
-  //     ,.stride_v_o(v_lo)
-  //     ,.pc_o(striding_pc_lo)
-  //     ,.start_discovery_o(start_discovery_lo)
-  //     ,.confirm_discovery_o(confirm_discovery_lo)
-
-  //     );
-
   bp_be_rpt #(.rpt_sets_p(rpt_sets_p)
               ,.stride_width_p(stride_width_p)
               ,.effective_addr_width_p(effective_addr_width_p))
@@ -121,7 +99,7 @@ module bp_be_stride_detector
       ,.reset_i(reset_i)
 
       ,.init_done_o() // ignore
-      ,.w_v_i(load_instr_v_n)
+      ,.w_v_i(pc_i != pc_prev_r & load_instr_v_n)
       ,.pc_i(pc_i)
       ,.eff_addr_i(eff_addr_i)
       ,.eff_addr_o(eff_addr_lo)

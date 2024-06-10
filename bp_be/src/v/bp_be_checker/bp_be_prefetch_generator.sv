@@ -15,7 +15,6 @@ module bp_be_prefetch_generator
 
    , parameter loop_range_p = 8 // width of output amount
    , parameter stride_width_p = 8
-   , parameter effective_addr_width_p = vaddr_width_p
    , localparam block_width_p = dcache_block_width_p
    , localparam dispatch_pkt_width_lp = `bp_be_dispatch_pkt_width(vaddr_width_p)
    )
@@ -24,7 +23,8 @@ module bp_be_prefetch_generator
 
    , input  logic [vaddr_width_p-1:0]                pc_i
    , input  logic [loop_range_p-1:0]                 loop_counter_i
-   , input  logic [effective_addr_width_p-1:0]       eff_addr_i
+   , input  logic [vaddr_width_p-1:0]                eff_addr_i
+   , input  logic [vaddr_width_p-1:0]                commit_pc_i
    , input  logic [stride_width_p-1:0]               stride_i
 
   // Striding load interface
@@ -44,7 +44,7 @@ module bp_be_prefetch_generator
   // `bp_cast_i(rv64_instr_ftype_s, instr);
 
   // Store the register values for the first and second time we see each branch
-  logic [dpath_width_gp-1:0] eff_addr_r, eff_addr_n;
+  logic [vaddr_width_p-1:0] eff_addr_r, eff_addr_n, eff_addr_r_lo;
   logic [stride_width_p-1:0] stride_r;
   logic [vaddr_width_p-1:0]  pc_r;
   logic [loop_range_p-1:0]   loop_counter_r;
@@ -52,6 +52,7 @@ module bp_be_prefetch_generator
   logic [2:0] state_n, state_r;
 
   logic [vaddr_width_p-`BSG_SAFE_CLOG2(block_width_p)-1:0] prev_block_n, prev_block_r;
+  logic decr_count_r;
 
   bsg_counter_set_down
     #(.width_p(loop_range_p))
@@ -60,13 +61,26 @@ module bp_be_prefetch_generator
       ,.reset_i(reset_i)
       ,.set_i(state_r == 3'b000 & state_n == 3'b001)
       ,.val_i(loop_counter_i)
-      ,.down_i(((ready_and_o & v_i) || (state_r == 3'b001 && prev_block_n == prev_block_r)) && loop_counter_r != '0)
+      ,.down_i(((ready_and_o & v_i) || (state_r == 3'b001 & prev_block_n == prev_block_r) || decr_count_r) && loop_counter_r != '0)
       ,.count_r_o(loop_counter_r)
       );
+
+  logic [3:0] stale_pfetch_r;
+  bsg_counter_set_down
+    #(.width_p(4))
+    stale_prefetch
+      (.clk_i(clk_i)
+      ,.reset_i(reset_i)
+      ,.set_i(state_r == 3'b001 && state_n == 3'b010)
+      ,.val_i('1)
+      ,.down_i(pc_r == commit_pc_i && state_r == 3'b010)
+      ,.count_r_o(stale_pfetch_r));
 
   always_ff @(posedge clk_i) begin
     if (reset_i) begin
       state_r <= '0;
+      eff_addr_r_lo <= '0;
+      decr_count_r <= '0;
     end else begin
         case (state_r)
           3'b000: begin
@@ -78,6 +92,17 @@ module bp_be_prefetch_generator
           3'b001: begin
             prev_block_r <= prev_block_n;
             eff_addr_r <= eff_addr_n;
+            if (state_n == 3'b010) begin
+              eff_addr_r_lo <= eff_addr_n;
+            end
+          end
+          3'b010: begin
+            if (prev_block_r == prev_block_n) begin
+              eff_addr_r <= eff_addr_n;
+              decr_count_r <= 1'b1;
+            end else begin
+              decr_count_r <= 1'b0;
+            end
           end
         endcase
         state_r <= state_n;
@@ -102,7 +127,7 @@ module bp_be_prefetch_generator
       end
       // Send prefetch
       3'b010: begin
-        state_n = yumi_i ? loop_counter_r == 3'b000 ? 3'b000 : 3'b001 : 3'b010;
+        state_n = yumi_i | &{~stale_pfetch_r} ? loop_counter_r == 3'b000 ? 3'b000 : 3'b001 : 3'b010;
       end
     endcase
   end
@@ -147,7 +172,7 @@ module bp_be_prefetch_generator
       dispatch_pkt_cast_o.nspec_v    = 1'b1;
       dispatch_pkt_cast_o.pc         = pc_r;
       dispatch_pkt_cast_o.instr      = instr;
-      dispatch_pkt_cast_o.rs1        = eff_addr_r;
+      dispatch_pkt_cast_o.rs1        = eff_addr_r_lo;
       dispatch_pkt_cast_o.decode     = decode;
     end
 
