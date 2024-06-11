@@ -122,7 +122,7 @@ module bp_be_pipe_mem
 
   wire is_req = reservation.v & (decode.pipe_mem_early_v | decode.pipe_mem_final_v);
   wire [rv64_eaddr_width_gp-1:0] eaddr = rs1 + imm;
-  wire [rv64_eaddr_width_gp-`BSG_SAFE_CLOG2(512)-1:0] prev_block = eaddr[rv64_eaddr_width_gp-1:`BSG_SAFE_CLOG2(512)];
+  wire [rv64_eaddr_width_gp-`BSG_SAFE_CLOG2(512/8)-1:0] prev_block = eaddr[rv64_eaddr_width_gp-1:`BSG_SAFE_CLOG2(512/8)];
 
   logic early_v_r;
   bsg_dff_chain

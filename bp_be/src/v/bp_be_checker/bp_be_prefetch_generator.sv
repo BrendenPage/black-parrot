@@ -18,6 +18,7 @@ module bp_be_prefetch_generator
    , parameter effective_addr_width_p = vaddr_width_p
    , parameter delay_iters_p = 2
    , localparam block_width_p = dcache_block_width_p
+   , localparam offset_bits_lp = `BSG_SAFE_CLOG2(block_width_p/8)
    , localparam decode_width_lp = $bits(bp_be_decode_s)
    , localparam dispatch_pkt_width_lp = `bp_be_dispatch_pkt_width(vaddr_width_p)
    )
@@ -56,7 +57,7 @@ module bp_be_prefetch_generator
   logic [2:0] state_n, state_r;
   logic [1:0] dstate_r, dstate_n;
 
-  logic [effective_addr_width_p -`BSG_SAFE_CLOG2(block_width_p)-1:0] prev_block_n, prev_block_r;
+  logic [effective_addr_width_p -offset_bits_lp-1:0] prev_block_n, prev_block_r;
   logic decr_count_r, state_delay;
 
   bsg_counter_set_down
@@ -93,7 +94,7 @@ module bp_be_prefetch_generator
         case (state_r)
           3'b000: begin
             stride_r <= stride_i;
-            prev_block_r <= eff_addr_i[vaddr_width_p-1:`BSG_SAFE_CLOG2(block_width_p)];
+            prev_block_r <= eff_addr_i[vaddr_width_p-1:offset_bits_lp];
             eff_addr_r <= eff_addr_i;
             pc_r <= pc_i;
           end
@@ -121,7 +122,7 @@ module bp_be_prefetch_generator
 
 
   assign eff_addr_n = eff_addr_r + stride_r;
-  assign prev_block_n = eff_addr_n[vaddr_width_p-1:`BSG_SAFE_CLOG2(block_width_p)];
+  assign prev_block_n = eff_addr_n[vaddr_width_p-1:`BSG_SAFE_CLOG2(block_width_p/8)];
 
   logic [`BSG_SAFE_CLOG2(delay_iters_p)-1:0] delay_counter_r;
   bsg_counter_set_down
