@@ -39,7 +39,6 @@ module bp_be_prefetch_generator
    , output logic [rv64_instr_width_gp-1:0]          instr_o
    , output logic [decode_width_lp-1:0]              decode_o
    , output logic [vaddr_width_p-1:0]                eff_addr_o
-  //  , output logic [dispatch_pkt_width_lp-1:0]        dispatch_pkt_o
 
    );
 
