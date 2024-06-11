@@ -127,6 +127,7 @@ module bp_be_pipe_sys
   logic retire_niscore_r, retire_iscore_r;
   logic retire_nfscore_r, retire_fscore_r;
   logic retire_nspec_w_r, retire_spec_w_r;
+  logic retire_nprefetch_r, retire_prefetch_r;
   always_ff @(posedge clk_i)
     begin
       retire_npc_r <= reservation.pc;
@@ -152,6 +153,9 @@ module bp_be_pipe_sys
 
       retire_nspec_w_r <= reservation.decode.score_v & reservation.decode.spec_w_v;
       retire_spec_w_r  <= retire_nspec_w_r;
+
+      retire_nprefetch_r <= reservation.decode.prefetch;
+      retire_prefetch_r  <= retire_nprefetch_r;
     end
 
   // Compute input CSR data
@@ -188,6 +192,7 @@ module bp_be_pipe_sys
       ,special    : instret_li ? retire_special_i   : '0
       ,iscore     : instret_li ? iscore_li : '0
       ,fscore     : instret_li ? fscore_li : '0
+      ,prefetch   : retire_prefetch_r
       };
 
   assign v_o = csr_v_li;

@@ -25,6 +25,7 @@ module bp_be_stride_detector
 
   // Instruction interface
    , input  logic [rv64_instr_width_gp-1:0]          instr_i
+   , input  logic                                    instr_v_i
    , input  logic [effective_addr_width_p-1:0]       eff_addr_i
 
    // Second cycle input
@@ -45,7 +46,7 @@ module bp_be_stride_detector
   logic [dword_width_gp-1:0] imm;
 
   // Is the instruction we are looking at a load instruction
-  logic load_instr_v_n;
+  logic load_instr_v;
 
   logic [vaddr_width_p-1:0] striding_pc_lo;
 
@@ -54,21 +55,14 @@ module bp_be_stride_detector
   logic start_discovery_lo, confirm_discovery_lo, v_lo;
 
   // Need to latch inputs to rpt as the pc comes in next cycle
-  logic [effective_addr_width_p-1:0] eff_addr_r, eff_addr_lo;
-  logic [vaddr_width_p-1:0] pc_prev_r; // to use as a pseudo instr_v_i
-  logic load_instr_v_r;
-  always_ff @(posedge clk_i) begin
-    load_instr_v_r <= load_instr_v_n;
-  end
+  logic [effective_addr_width_p-1:0] eff_addr_lo;
 
   always_ff @(posedge clk_i) begin
     if (reset_i) begin
       start_discovery_o    <= '0;
       confirm_discovery_o  <= '0;
       striding_pc_o        <= '0;
-      pc_prev_r            <= '0;
     end else begin
-      pc_prev_r <= pc_i;
       if (confirm_discovery_lo || start_discovery_lo) begin
         confirm_discovery_o <= confirm_discovery_lo & |stride_lo;
         start_discovery_o <= start_discovery_lo & |stride_lo;
@@ -94,7 +88,7 @@ module bp_be_stride_detector
       ,.reset_i(reset_i)
 
       ,.init_done_o() // ignore
-      ,.w_v_i(pc_i != pc_prev_r & load_instr_v_n)
+      ,.w_v_i(instr_v_i & load_instr_v)
       ,.pc_i(pc_i)
       ,.eff_addr_i(eff_addr_i)
       ,.eff_addr_o(eff_addr_lo)
@@ -103,23 +97,21 @@ module bp_be_stride_detector
       ,.stride_v_o(v_lo)
       ,.pc_o(striding_pc_lo)
       ,.start_discovery_o(start_discovery_lo)
-      ,.confirm_discovery_o(confirm_discovery_lo)
-
-      );
+      ,.confirm_discovery_o(confirm_discovery_lo));
 
   always_comb begin
     unique casez (instr_cast_i.opcode)
       `RV64_LOAD_OP  : begin
-        load_instr_v_n = 1'b1;
+        load_instr_v = 1'b1;
         imm = `rv64_signext_i_imm(instr_cast_i);
       end
       `RV64_STORE_OP : begin
-        load_instr_v_n = 1'b1;
+        load_instr_v = 1'b1;
         imm = `rv64_signext_s_imm(instr_cast_i);
       end
       default: begin
         imm = 0;
-        load_instr_v_n = 1'b0;
+        load_instr_v = 1'b0;
       end
     endcase
   end

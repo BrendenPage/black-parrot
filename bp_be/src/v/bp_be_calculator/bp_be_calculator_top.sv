@@ -47,6 +47,7 @@ module bp_be_calculator_top
    , output logic [decode_info_width_lp-1:0]         decode_info_o
    , output logic [trans_info_width_lp-1:0]          trans_info_o
    , input                                           cmd_full_n_i
+   , output logic                                    dcache_processing_miss_o
 
    , output logic [commit_pkt_width_lp-1:0]          commit_pkt_o
    , output logic [branch_pkt_width_lp-1:0]          br_pkt_o
@@ -411,6 +412,7 @@ module bp_be_calculator_top
      ,.store_misaligned_v_o(pipe_mem_store_misaligned_lo)
      ,.store_access_fault_v_o(pipe_mem_store_access_fault_lo)
      ,.store_page_fault_v_o(pipe_mem_store_page_fault_lo)
+     ,.processing_miss_o(dcache_processing_miss_o)
 
      ,.early_data_o(pipe_mem_early_data_lo)
      ,.early_v_o(pipe_mem_early_data_v_lo)

@@ -16,6 +16,7 @@ module bp_be_prefetch_generator
    , parameter loop_range_p = 8 // width of output amount
    , parameter stride_width_p = 8
    , parameter effective_addr_width_p = vaddr_width_p
+   , parameter delay_iters_p = 2
    , localparam block_width_p = dcache_block_width_p
    , localparam decode_width_lp = $bits(bp_be_decode_s)
    , localparam dispatch_pkt_width_lp = `bp_be_dispatch_pkt_width(vaddr_width_p)
@@ -27,25 +28,24 @@ module bp_be_prefetch_generator
    , input  logic [loop_range_p-1:0]                 loop_counter_i
    , input  logic [effective_addr_width_p-1:0]       eff_addr_i
    , input  logic [vaddr_width_p-1:0]                commit_pc_i
+   , input  logic                                    commit_v_i
    , input  logic [stride_width_p-1:0]               stride_i
 
   // Striding load interface
    , input  logic                                    v_i
    , output logic                                    ready_and_o
 
-  // Dispatch pkt interface
+  // Dispatch interface
    , input  logic                                    yumi_i
    , output logic                                    v_o
    , output logic [rv64_instr_width_gp-1:0]          instr_o
    , output logic [decode_width_lp-1:0]              decode_o
    , output logic [vaddr_width_p-1:0]                eff_addr_o
-
+   , input  logic                                    dcache_processing_miss_i
+   , input  logic                                    pfetch_commit_v_i
    );
 
   `declare_bp_be_internal_if_structs(vaddr_width_p, paddr_width_p, asid_width_p, branch_metadata_fwd_width_p);
-
-  // `bp_cast_o(bp_be_dispatch_pkt_s, dispatch_pkt);
-  // `bp_cast_i(rv64_instr_ftype_s, instr);
 
   // Store the register values for the first and second time we see each branch
   logic [effective_addr_width_p-1:0] eff_addr_r, eff_addr_n, eff_addr_r_lo;
@@ -54,18 +54,19 @@ module bp_be_prefetch_generator
   logic [loop_range_p-1:0]   loop_counter_r;
 
   logic [2:0] state_n, state_r;
+  logic [1:0] dstate_r, dstate_n;
 
   logic [effective_addr_width_p -`BSG_SAFE_CLOG2(block_width_p)-1:0] prev_block_n, prev_block_r;
-  logic decr_count_r;
+  logic decr_count_r, state_delay;
 
   bsg_counter_set_down
     #(.width_p(loop_range_p))
     remaining_prefetches_ctr
       (.clk_i(clk_i)
       ,.reset_i(reset_i)
-      ,.set_i(state_r == 3'b000 & state_n == 3'b001)
+      ,.set_i(state_r == 3'b000 & state_n == 3'b011)
       ,.val_i(loop_counter_i)
-      ,.down_i(((ready_and_o & v_i) || (state_r == 3'b001 & prev_block_n == prev_block_r) || decr_count_r) && loop_counter_r != '0)
+      ,.down_i(((ready_and_o & v_i) || (state_r == 3'b001 & prev_block_n == prev_block_r) || decr_count_r || (state_n != state_r)) && loop_counter_r != '0)
       ,.count_r_o(loop_counter_r)
       );
 
@@ -77,14 +78,17 @@ module bp_be_prefetch_generator
       ,.reset_i(reset_i)
       ,.set_i(state_r == 3'b001 && state_n == 3'b010)
       ,.val_i('1)
-      ,.down_i(pc_r == commit_pc_i && state_r == 3'b010)
+      ,.down_i((pc_r == commit_pc_i && commit_v_i) && state_r == 3'b010 && state_n == 3'b010)
       ,.count_r_o(stale_pfetch_r));
 
   always_ff @(posedge clk_i) begin
     if (reset_i) begin
       state_r <= '0;
       eff_addr_r_lo <= '0;
+      eff_addr_r <= '0;
       decr_count_r <= '0;
+      stride_r <= '0;
+      dstate_r <= '0;
     end else begin
         case (state_r)
           3'b000: begin
@@ -93,10 +97,11 @@ module bp_be_prefetch_generator
             eff_addr_r <= eff_addr_i;
             pc_r <= pc_i;
           end
-          3'b001: begin
+          3'b011, 3'b001: begin
             prev_block_r <= prev_block_n;
             eff_addr_r <= eff_addr_n;
             if (state_n == 3'b010) begin
+              decr_count_r <= 1'b1;
               eff_addr_r_lo <= eff_addr_n;
             end
           end
@@ -109,7 +114,8 @@ module bp_be_prefetch_generator
             end
           end
         endcase
-        state_r <= state_n;
+        state_r  <= state_n;
+        dstate_r <= dstate_n;
     end
   end
 
@@ -117,25 +123,48 @@ module bp_be_prefetch_generator
   assign eff_addr_n = eff_addr_r + stride_r;
   assign prev_block_n = eff_addr_n[vaddr_width_p-1:`BSG_SAFE_CLOG2(block_width_p)];
 
+  logic [`BSG_SAFE_CLOG2(delay_iters_p)-1:0] delay_counter_r;
+  bsg_counter_set_down
+    #(.width_p(`BSG_SAFE_CLOG2(delay_iters_p)))
+    delay_counter
+      (.clk_i(clk_i)
+      ,.reset_i(reset_i)
+      ,.set_i(state_r == 3'b000 & state_n == 3'b011)
+      ,.val_i(delay_iters_p)
+      ,.down_i(state_r == 3'b011 & |delay_counter_r)
+      ,.count_r_o(delay_counter_r)
+      );
+
   // FSM
   always_comb begin
     state_n = 3'b000;
     case(state_r)
       // wait
       3'b000: begin
-        state_n = v_i && loop_counter_i != '0 & |stride_i ? 3'b001 : 3'b000;
+        state_n = v_i && loop_counter_i != '0 & |stride_i ? 3'b011 : 3'b000;
       end
+      // Delay by several loop cycles to get ahead of execution
+      3'b011: state_n = |delay_counter_r ? 3'b011 : 3'b001;
       // latched prefetch info, iterate stride and loop count until next block
       3'b001: begin
         state_n = loop_counter_r == 1 && prev_block_r == prev_block_n ? 3'b000 : prev_block_r == prev_block_n ? 3'b001 : 3'b010;
       end
       // Send prefetch
       3'b010: begin
-        state_n = yumi_i | &{~stale_pfetch_r} ? loop_counter_r == 3'b000 ? 3'b000 : 3'b001 : 3'b010;
+        state_n = (yumi_i & dstate_r == 2'b00 & ~dcache_processing_miss_i) | &{~stale_pfetch_r} ? loop_counter_r == 3'b000 ? 3'b000 : 3'b001 : 3'b010;
       end
     endcase
   end
 
+  // Delay FSM
+  always_comb begin
+    dstate_n = '0;
+    case(dstate_r)
+      2'b00: dstate_n = v_o && yumi_i ? 2'b01 : 2'b00;
+      2'b01: dstate_n = pfetch_commit_v_i ? 2'b10 : 2'b01;
+      2'b10: dstate_n = dcache_processing_miss_i ? 2'b10 : 2'b00;
+    endcase
+  end
 
   rv64_instr_stype_s instr;
   always_comb
@@ -171,6 +200,6 @@ module bp_be_prefetch_generator
   assign decode_o    = decode;
   assign eff_addr_o  = eff_addr_r_lo;
   assign ready_and_o = state_r == 3'b000;
-  assign v_o         = state_r == 3'b010;
+  assign v_o         = state_r == 3'b010 && dstate_r == 2'b00 && ~dcache_processing_miss_i;
 
 endmodule

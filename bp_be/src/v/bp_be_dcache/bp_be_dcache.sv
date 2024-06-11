@@ -143,6 +143,7 @@ module bp_be_dcache
    , output logic                                    ptw_o
    , output logic                                    ret_o
    , output logic                                    late_o
+   , output logic                                    processing_miss_o
 
    // Cache Engine Interface
    // This is considered the "slow path", handling uncached requests
@@ -498,6 +499,7 @@ module bp_be_dcache
   assign ptw_o      = decode_tv_r.ptw_op;
   assign ret_o      = decode_tv_r.ret_op;
   assign late_o     = snoop_tv_r;
+  assign processing_miss_o = state_r == e_primary | state_r == e_serial;
 
   ///////////////////////////
   // Stat Mem Storage

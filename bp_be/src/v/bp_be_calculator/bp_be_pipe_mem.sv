@@ -51,6 +51,7 @@ module bp_be_pipe_mem
    , output logic                         store_misaligned_v_o
    , output logic                         store_access_fault_v_o
    , output logic                         store_page_fault_v_o
+   , output logic                         processing_miss_o
 
    , output logic [dpath_width_gp-1:0]    early_data_o
    , output logic                         early_v_o
@@ -121,6 +122,7 @@ module bp_be_pipe_mem
 
   wire is_req = reservation.v & (decode.pipe_mem_early_v | decode.pipe_mem_final_v);
   wire [rv64_eaddr_width_gp-1:0] eaddr = rs1 + imm;
+  wire [rv64_eaddr_width_gp-`BSG_SAFE_CLOG2(512)-1:0] prev_block = eaddr[rv64_eaddr_width_gp-1:`BSG_SAFE_CLOG2(512)];
 
   logic early_v_r;
   bsg_dff_chain
@@ -277,6 +279,7 @@ module bp_be_pipe_mem
      ,.ptw_o(dcache_ptw)
      ,.ret_o(dcache_ret)
      ,.late_o(dcache_late)
+     ,.processing_miss_o(processing_miss_o)
 
      // D$-LCE Interface
      ,.cache_req_o(cache_req_cast_o)

@@ -38,6 +38,7 @@ module bp_be_loop_inference
    , input [wb_pkt_width_lp-1:0]                     iwb_pkt_i
 
    , input logic [rv64_instr_width_gp-1:0]           instr_i
+   , input logic                                     instr_v_i
    , input logic [vaddr_width_p-1:0]                 pc_i
    , input logic [vaddr_width_p-1:0]                 vaddr_i
    , input logic [vaddr_width_p-1:0]                 npc_i
@@ -89,8 +90,6 @@ module bp_be_loop_inference
   logic [vaddr_width_p-1:0] taken_tgt;
 
   logic [2:0] state_n, state_r;
-
-
 
   logic [`BSG_SAFE_CLOG2(discovery_misses_p + 1)-1:0] skips_remaining;
   bsg_counter_set_down
@@ -184,18 +183,18 @@ module bp_be_loop_inference
       `RV64_BRANCH_OP:
           begin
             unique casez (instr_cast_i)
-              `RV64_BEQ  : branch_op_v = 1'b1;
-              `RV64_BNE  : branch_op_v = 1'b1;
+              `RV64_BEQ  : branch_op_v = instr_v_i;
+              `RV64_BNE  : branch_op_v = instr_v_i;
               `RV64_BLT  : begin
-                branch_op_v = 1'b1;
+                branch_op_v = instr_v_i;
                 swap_ops = 1'b1;
               end
-              `RV64_BGE  : branch_op_v = 1'b1;
+              `RV64_BGE  : branch_op_v = instr_v_i;
               `RV64_BLTU : begin
-                branch_op_v = 1'b1;
+                branch_op_v = instr_v_i;
                 swap_ops = 1'b1;
               end
-              `RV64_BGEU : branch_op_v = 1'b1;
+              `RV64_BGEU : branch_op_v = instr_v_i;
               default: begin
                 branch_op_v = 1'b0;
                 swap_ops = '0;

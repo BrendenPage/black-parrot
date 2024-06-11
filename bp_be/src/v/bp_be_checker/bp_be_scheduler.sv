@@ -29,7 +29,7 @@ module bp_be_scheduler
    , localparam trans_info_width_lp = `bp_be_trans_info_width(ptag_width_p)
    , localparam wb_pkt_width_lp = `bp_be_wb_pkt_width(vaddr_width_p)
    , localparam output_range_lp = 8
-   , localparam stride_width_p  = 8
+   , localparam stride_width_p  = 24
    )
   (input                                      clk_i
    , input                                    reset_i
@@ -45,6 +45,7 @@ module bp_be_scheduler
    , input                                    ispec_v_i
    , input                                    poison_isd_i
    , input                                    ordered_v_i
+   , input                                    dcache_processing_miss_i
    , input [trans_info_width_lp-1:0]          trans_info_i
 
    // Fetch interface
@@ -168,6 +169,8 @@ module bp_be_scheduler
   rv64_instr_fmatype_s preissue_instr;
   assign preissue_instr = preissue_pkt.instr;
 
+  wire commit_pkt_i_prefetch = commit_pkt_cast_i.prefetch;
+
   logic [dpath_width_gp-1:0] irf_rs1, irf_rs2;
   bp_be_regfile
   #(.bp_params_p(bp_params_p), .read_ports_p(2), .zero_x0_p(1), .data_width_p($bits(bp_be_int_reg_s)))
@@ -211,14 +214,15 @@ module bp_be_scheduler
   bp_be_dispatch_pkt_s pref_dispatch_pkt;
   bp_be_decode_s pref_decode_lo;
   rv64_instr_stype_s pref_instr_lo;
-  wire entered_main = expected_npc_i == 'h80000148;
-  wire exit_main    = expected_npc_i == 'h80000210;
+  wire entered_main = expected_npc_i == 'h80000146;
+  wire exit_main    = expected_npc_i == 'h800001c4;
 
   bp_be_loop_inference
    #(.bp_params_p(bp_params_p)
     ,.output_range_p(output_range_lp)
     ,.register_width_p($bits(bp_be_int_reg_s))
-    ,.effective_addr_width_p(vaddr_width_p))
+    ,.effective_addr_width_p(vaddr_width_p)
+    ,.stride_width_p(stride_width_p))
    loop_profiler
     (.clk_i(clk_i)
     ,.reset_i(reset_i)
@@ -234,6 +238,7 @@ module bp_be_scheduler
     ,.iwb_pkt_i(iwb_pkt_i)
 
     ,.instr_i(commit_pkt_cast_i.instr)
+    ,.instr_v_i(commit_pkt_cast_i.queue_v)
     ,.pc_i(commit_pkt_cast_i.pc)
     ,.npc_i(commit_pkt_cast_i.npc)
     ,.vaddr_i(commit_pkt_cast_i.vaddr)
@@ -259,6 +264,7 @@ module bp_be_scheduler
     ,.reset_i(reset_i)
 
     ,.instr_i(commit_pkt_cast_i.instr)
+    ,.instr_v_i(commit_pkt_cast_i.queue_v)
     ,.eff_addr_i(commit_pkt_cast_i.vaddr)
 
     ,.pc_i(commit_pkt_cast_i.pc)
@@ -279,6 +285,7 @@ module bp_be_scheduler
     ,.reset_i(reset_i)
 
     ,.pc_i(pref_pc_lo)
+    ,.commit_v_i(commit_pkt_cast_i.queue_v)
     ,.commit_pc_i(commit_pkt_cast_i.pc)
     ,.loop_counter_i(remaining_iteratons_lo)
     ,.eff_addr_i(pref_addr_2_lo)
@@ -291,6 +298,9 @@ module bp_be_scheduler
     ,.instr_o(pref_instr_lo)
     ,.decode_o(pref_decode_lo)
     ,.eff_addr_o(pref_addr_3_lo)
+
+    ,.dcache_processing_miss_i(dcache_processing_miss_i)
+    ,.pfetch_commit_v_i(commit_pkt_cast_i.prefetch)
     );
 
 

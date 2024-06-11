@@ -99,7 +99,7 @@ module bp_be_top
   logic npc_mismatch_lo, poison_isd_lo, clear_iss_lo, suppress_iss_lo, resume_lo;
 
   logic cmd_full_n_lo, cmd_full_r_lo, cmd_empty_n_lo, cmd_empty_r_lo;
-  logic mem_ordered_lo, mem_busy_lo, idiv_busy_lo, fdiv_busy_lo;
+  logic mem_ordered_lo, mem_busy_lo, idiv_busy_lo, fdiv_busy_lo, dcache_processing_miss_lo;
 
   bp_be_director
    #(.bp_params_p(bp_params_p))
@@ -170,6 +170,7 @@ module bp_be_top
      ,.ispec_v_i(ispec_v)
      ,.irq_pending_i(irq_pending_lo)
      ,.ordered_v_i(ordered_v)
+     ,.dcache_processing_miss_i(dcache_processing_miss_lo)
 
      ,.fe_queue_i(fe_queue_i)
      ,.fe_queue_v_i(fe_queue_v_i)
@@ -199,6 +200,7 @@ module bp_be_top
      ,.mem_ordered_o(mem_ordered_lo)
      ,.idiv_busy_o(idiv_busy_lo)
      ,.fdiv_busy_o(fdiv_busy_lo)
+     ,.dcache_processing_miss_o(dcache_processing_miss_lo)
 
      ,.dispatch_pkt_i(dispatch_pkt)
      ,.br_pkt_o(br_pkt)
