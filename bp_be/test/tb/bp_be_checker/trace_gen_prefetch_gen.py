@@ -2,23 +2,19 @@
 #   trace_gen_prefetch_gen.py
 #
 
-import numpy as np
-
 class TraceGen:
 
   # constructor
-  def __init__(self, loop_range_width_p, stride_width_p, vaddr_width_p, dispatch_pkt_width_p, block_width_p):
+  def __init__(self, loop_range_width_p, stride_width_p, vaddr_width_p, block_width_p, instr_width_p, decode_width_p):
     self.loop_range_width_p = loop_range_width_p
     self.stride_width_p = stride_width_p
     self.vaddr_width_p = vaddr_width_p
-    self.dispatch_pkt_width_p = dispatch_pkt_width_p
     self.block_width_p = block_width_p
-    # dispatch_pkt_width_p is wider than the rest combined and is the only contents of the expected output for matching
-    self.packet_len = dispatch_pkt_width_p
-    self.junk_width = dispatch_pkt_width_p - (loop_range_width_p + vaddr_width_p*2 + stride_width_p)
-    if (self.junk_width < 0):
-      raise ValueError("Packet larger than dispatch packet width")
-    
+
+    self.input_width = vaddr_width_p*2 + stride_width_p + loop_range_width_p
+    self.output_width= vaddr_width_p + instr_width_p + decode_width_p
+    self.packet_len  = self.input_width + self.output_width
+
 
   # print header
   def print_header(self):
@@ -29,6 +25,8 @@ class TraceGen:
   # send prefetch info
   def send_pref_info(self, pc, eff_addr, loop_counter, stride):
     packet = "0001_"
+
+    packet += "0"*self.output_width + "_"
 
     packet += format(0, "0" + str(self.junk_width)+"b")+ "_"
 
@@ -41,10 +39,17 @@ class TraceGen:
     packet += format(stride, "0"+str(self.stride_width_p)+"b") + "\n"
     return packet
 
-  def format_dispatch_pkt(self, pc, eff_addr):
+  def format_dispatch_pkt(self, eff_addr):
     packet = ""
-    instr = "00000000000100000110000000010011"
-    packet += "10000" + format(pc, "0"+str(self.vaddr_width_p+"b")) + "_" + instr + "_" + format(eff_addr, "0"+str(self.vaddr_width_p+"b")) + "_" + "001000000" + "000000000001000001110010" + "01" + "000" + "000000" + "000000" + "0001000000"
+    imm11to5 = "0000000"
+    rs2 = "00001"
+    rs1 = "00000"
+    funct3 = "110"
+    imm4to0 = "00000"
+    opcode = "0010011"
+    instr = imm11to5 + rs2 + rs1 + funct3 + imm4to0 + opcode
+    decode = "00100000000000000000100000101001101000000000000001000000"
+    packet += instr + "_" + decode + "_" + format(eff_addr, "0"+str(self.vaddr_width_p+"b")) + "_" + "0"*self.input_width
     return packet
 
   def recv_dispatch_pkts(self, pc, eff_addr, stride, loop_counter):
@@ -55,17 +60,9 @@ class TraceGen:
       eff_addr += stride
       if not (prev_eff_addr/self.block_width_p == eff_addr/self.block_width_p):
         #send dispatch packet
-        packet_set += "0010" + self.format_dispatch_pkt(pc, eff_addr) + "\n"
+        packet_set += "0010_" + self.format_dispatch_pkt(pc, eff_addr) + "\n"
       prev_eff_addr = eff_addr
     return packet_set
-
-  # receive data
-  # data: expected data
-  def recv_data(self, data):
-    packet = "0010_"
-    bin_data = np.binary_repr(data, 64)
-    packet += "0" + "0"*(self.ptag_width_p) + "_" + "0"*(self.opcode_width_p) + "_" + "0"*(self.offset_width_p) + "_" + "00" + bin_data + "\n"
-    return packet
 
   # wait for a number of cycles
   # num_cycles: number of cycles to wait.
