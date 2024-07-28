@@ -124,14 +124,15 @@ module bp_be_prefetch_generator
   assign eff_addr_n = eff_addr_r + stride_r;
   assign prev_block_n = eff_addr_n[vaddr_width_p-1:`BSG_SAFE_CLOG2(block_width_p/8)];
 
-  logic [`BSG_SAFE_CLOG2(delay_iters_p)-1:0] delay_counter_r;
+  logic [`BSG_SAFE_CLOG2(delay_iters_p)-1:0] delay_counter_r, delay_iters_init_li;
+  assign delay_iters_init_li = delay_iters_p;
   bsg_counter_set_down
     #(.width_p(`BSG_SAFE_CLOG2(delay_iters_p)))
     delay_counter
       (.clk_i(clk_i)
       ,.reset_i(reset_i)
       ,.set_i(state_r == 3'b000 & state_n == 3'b011)
-      ,.val_i(delay_iters_p)
+      ,.val_i(delay_iters_init_li)
       ,.down_i(state_r == 3'b011 & |delay_counter_r)
       ,.count_r_o(delay_counter_r)
       );
