@@ -11,9 +11,10 @@ class TraceGen:
     self.vaddr_width_p = vaddr_width_p
     self.block_width_p = block_width_p
 
-    self.input_width = vaddr_width_p*2 + stride_width_p + loop_range_width_p
-    self.output_width= vaddr_width_p + instr_width_p + decode_width_p
+    self.input_width = 1 + vaddr_width_p*2 + stride_width_p + loop_range_width_p # commit_v, pc, eff addr, stride, loop count
+    self.output_width= vaddr_width_p + instr_width_p + decode_width_p # eff addr, instr, decode
     self.packet_len  = self.input_width + self.output_width
+    self.delay_cycles= 2
 
 
   # print header
@@ -24,19 +25,24 @@ class TraceGen:
 
   # send prefetch info
   def send_pref_info(self, pc, eff_addr, loop_counter, stride):
+
+    if pc > 2**self.vaddr_width_p-1 or eff_addr > 2**self.vaddr_width_p-1 or loop_counter > 2**self.loop_range_width_p-1 or stride > 2**self.vaddr_width_p-1:
+      exit("parameters too large for bit widths")
+
+
     packet = "0001_"
 
     packet += "0"*self.output_width + "_"
 
-    packet += format(0, "0" + str(self.junk_width)+"b")+ "_"
+    packet += "0_" # commit_v
 
-    packet += format(pc, "0"+str(self.vaddr_width_p)+"b") + "_"
 
-    packet += format(eff_addr, "0"+str(self.vaddr_width_p+"b")) + "_"
+    packet += format(stride, "0"+str(self.stride_width_p)+"b") + "_"
+
+    packet += format(eff_addr, "0"+str(self.vaddr_width_p)+"b") + "_"
 
     packet += format(loop_counter, "0"+str(self.loop_range_width_p)+"b") + "_"
-
-    packet += format(stride, "0"+str(self.stride_width_p)+"b") + "\n"
+    packet += format(pc, "0"+str(self.vaddr_width_p)+"b") + "\n"
     return packet
 
   def format_dispatch_pkt(self, eff_addr):
@@ -49,20 +55,32 @@ class TraceGen:
     opcode = "0010011"
     instr = imm11to5 + rs2 + rs1 + funct3 + imm4to0 + opcode
     decode = "00100000000000000000100000101001101000000000000001000000"
-    packet += instr + "_" + decode + "_" + format(eff_addr, "0"+str(self.vaddr_width_p+"b")) + "_" + "0"*self.input_width
+    packet += instr + "_" + decode + "_" + format(eff_addr, "0"+str(self.vaddr_width_p)+"b") + "_" + "0"*self.input_width
     return packet
 
-  def recv_dispatch_pkts(self, pc, eff_addr, stride, loop_counter):
+  def recv_dispatch_pkts(self, eff_addr, loop_counter, stride):
     packet_set = ""
     prev_eff_addr = eff_addr
+    eff_addr += stride*self.delay_cycles
+    loop_counter -= self.delay_cycles
     while loop_counter > 0:
-      loop_counter -= 1
-      eff_addr += stride
-      if not (prev_eff_addr/self.block_width_p == eff_addr/self.block_width_p):
+      if not (int(prev_eff_addr/self.block_width_p) == int(eff_addr/self.block_width_p)):
         #send dispatch packet
-        packet_set += "0010_" + self.format_dispatch_pkt(pc, eff_addr) + "\n"
-      prev_eff_addr = eff_addr
+        packet_set += "0010_" + self.format_dispatch_pkt(eff_addr) + "\n"
+        packet_set += self.nop()
+        packet_set += self.send_commit_response() + "\n"
+        prev_eff_addr = eff_addr
+        print(eff_addr)
+      # else:
+      #   print("eff_addr: " + str(eff_addr) + ", section: " + str(int(eff_addr/self.block_width_p)))
+      #   print("prev_eff_addr: " + str(prev_eff_addr) + ", section: " + str(int(prev_eff_addr/self.block_width_p)))
+      eff_addr += stride
+      loop_counter -= 1
+
     return packet_set
+
+  def send_commit_response(self):
+    return "0001_" + "0"*(self.output_width) + "_1_" + "0"*(self.input_width-1) + "\n"
 
   # wait for a number of cycles
   # num_cycles: number of cycles to wait.
@@ -87,7 +105,7 @@ class TraceGen:
   # wait for a single cycle
   def nop(self):
     return "0000_" + "0"*(self.packet_len) + "\n"
-  
+
   # print comments in the trace file
   def print_comment(self, comment):
     return "// " + comment + "\n"

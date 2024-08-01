@@ -1,4 +1,4 @@
- /* testbench_prefetch_gen.sv
+ /* testbench.sv
   * 
   * Testbench for bp_be_prefetch_generator.sv
   *
@@ -6,7 +6,7 @@
 
 
 
-module testbench_prefetch_gen
+module testbench
  import bp_common_pkg::*;
  import bp_be_pkg::*;
  #(parameter bp_params_e bp_params_p = e_bp_default_cfg
@@ -17,14 +17,13 @@ module testbench_prefetch_gen
    , parameter loop_range_width_p = 8
 
 
-   , parameter trace_file_p = "test_prefetch_gen.tr"
+   , parameter trace_file_p = "/mnt/users/ssd0/homes/bpage1/bsg/black-parrot-sim/black-parrot/bp_be/test/tb/bp_be_checker/basic_prefetch_gen.tr"
 
    // Derived parameters
-   , localparam trace_rom_addr_width_lp    = 8
+   , localparam trace_rom_addr_width_lp    = 16
    , localparam dispatch_pkt_width_lp      = `bp_be_dispatch_pkt_width(vaddr_width_p)
    , localparam decode_width_lp = $bits(bp_be_decode_s)
-   , localparam trace_replay_data_width_lp = vaddr_width_p*3 + stride_width_p + loop_range_width_p + decode_width_lp + rv64_instr_width_gp
-   , localparam input_interface_width_lp = vaddr_width_p*2 + stride_width_p + loop_range_width_p
+   , localparam trace_replay_data_width_lp = vaddr_width_p*3 + stride_width_p + loop_range_width_p + decode_width_lp + rv64_instr_width_gp + 1
    )
   (output bit reset_i);
 
@@ -48,8 +47,8 @@ module testbench_prefetch_gen
   logic trace_v_lo;
   logic dut_ready_lo, dut_v_lo;
 
-  logic [trace_replay_data_width_lp-1:0] trace_data_li;
-  logic trace_v_li, trace_ready_lo;
+  logic [trace_replay_data_width_lp-1:0] trace_data_li, trace_data_lo;
+  logic trace_v_li, trace_ready_lo, commit_v_li;
 
 
 
@@ -102,7 +101,7 @@ module testbench_prefetch_gen
 
       ,.v_o(trace_v_lo)
       ,.data_o(trace_data_lo)
-      ,.yumi_i(dut_ready_lo & trace_v_lo)
+      ,.yumi_i((dut_ready_lo & trace_v_lo) | (trace_v_lo & commit_v_li))
 
       ,.rom_addr_o(trace_rom_addr_lo)
       ,.rom_data_i(trace_rom_data_li)
@@ -123,17 +122,18 @@ module testbench_prefetch_gen
 
 
   // recover inputs from trace data [output interface, stride, eff_addr, loop_counter, pc]
-  assign pc_li           = trace_data_lo[vaddr_width_p-1:0];
-  assign loop_counter_li = trace_data_lo[loop_range_width_p + vaddr_width_p -1 : vaddr_width_p];
-  assign eff_addr_li     = trace_data_lo[vaddr_width_p*2 + loop_range_width_p-1: loop_range_width_p + vaddr_width_p];
-  assign stride_li       = trace_data_lo[stride_width_p + vaddr_width_p*2 + loop_range_width_p-1 : vaddr_width_p*2 + loop_range_width_p];
+  assign pc_li           = trace_data_lo[vaddr_width_p-1-:vaddr_width_p];
+  assign loop_counter_li = trace_data_lo[loop_range_width_p + vaddr_width_p -1 -: loop_range_width_p];
+  assign eff_addr_li     = trace_data_lo[vaddr_width_p*2 + loop_range_width_p-1 -: vaddr_width_p];
+  assign stride_li       = trace_data_lo[stride_width_p + vaddr_width_p*2 + loop_range_width_p-1 -: stride_width_p];
+  assign commit_v_li     = trace_data_lo[stride_width_p + vaddr_width_p*2 + loop_range_width_p];
 
   logic [rv64_instr_width_gp-1:0] instr_lo;
   logic [decode_width_lp-1:0]     decode_lo;
   logic [vaddr_width_p-1:0]       eff_addr_lo;
 
   // [instr, decode, eff_addr, input interface]
-  assign dut_data_lo = {instr_lo, decode_lo, eff_addr_lo, '0};
+  assign dut_data_lo = {instr_lo, decode_lo, eff_addr_lo, {(trace_replay_data_width_lp - (rv64_instr_width_gp + decode_width_lp + vaddr_width_p)){1'b0}}};
 
 
   bp_be_prefetch_generator
@@ -153,17 +153,17 @@ module testbench_prefetch_gen
     ,.eff_addr_i(eff_addr_li)
     ,.stride_i(stride_li)
 
-    ,.v_i(trace_v_lo)
+    ,.v_i(trace_v_lo & ~commit_v_li)
     ,.ready_and_o(dut_ready_lo)
     ,.yumi_i(trace_ready_lo & trace_v_li)
     ,.v_o(trace_v_li)
     
-    ,.instr_o(pref_instr_lo)
-    ,.decode_o(pref_decode_lo)
-    ,.eff_addr_o(pref_addr_3_lo)
+    ,.instr_o(instr_lo)
+    ,.decode_o(decode_lo)
+    ,.eff_addr_o(eff_addr_lo)
 
-    ,.dcache_processing_miss_i('0)
-    ,.pfetch_commit_v_i(1'b1)
+    ,.dcache_processing_miss_i(1'b0)
+    ,.pfetch_commit_v_i(commit_v_li)
     );
 
 

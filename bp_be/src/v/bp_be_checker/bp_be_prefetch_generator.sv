@@ -54,20 +54,39 @@ module bp_be_prefetch_generator
   logic [vaddr_width_p-1:0]  pc_r;
   logic [loop_range_p-1:0]   loop_counter_r;
 
-  logic [2:0] state_n, state_r;
-  logic [1:0] dstate_r, dstate_n;
+  typedef enum logic [2:0] {
+    WAIT    = 3'b000,
+    DELAY   = 3'b001,
+    ITERATE = 3'b010,
+    SEND    = 3'b011
+  } main_state_t;
+
+  main_state_t state_n, state_r;
+
+  typedef enum logic [1:0] {
+    LATCH_OUTPUT = 2'b00,
+    PFETCH_SEEN  = 2'b01,
+    WAIT_MISS    = 2'b10
+  } delay_state_t;
+
+  delay_state_t dstate_r, dstate_n;
 
   logic [effective_addr_width_p -offset_bits_lp-1:0] prev_block_n, prev_block_r;
-  logic decr_count_r, state_delay;
+  logic state_delay;
+
+  wire blocks_match = prev_block_n == prev_block_r;
+
+
+  wire decr = (state_r != WAIT && prev_block_n == prev_block_r) || state_r == DELAY || (v_o & yumi_i) || (v_i & ready_and_o);
 
   bsg_counter_set_down
     #(.width_p(loop_range_p))
     remaining_prefetches_ctr
       (.clk_i(clk_i)
       ,.reset_i(reset_i)
-      ,.set_i(state_r == 3'b000 & state_n == 3'b011)
+      ,.set_i(state_r == WAIT & state_n == DELAY)
       ,.val_i(loop_counter_i)
-      ,.down_i(((ready_and_o & v_i) || (state_r == 3'b001 & prev_block_n == prev_block_r) || decr_count_r || (state_n != state_r)) && loop_counter_r != '0)
+      ,.down_i(decr && loop_counter_r != '0)
       ,.count_r_o(loop_counter_r)
       );
 
@@ -77,41 +96,40 @@ module bp_be_prefetch_generator
     stale_prefetch
       (.clk_i(clk_i)
       ,.reset_i(reset_i)
-      ,.set_i(state_r == 3'b001 && state_n == 3'b010)
+      ,.set_i(state_r == ITERATE && state_n == SEND)
       ,.val_i('1)
-      ,.down_i((pc_r == commit_pc_i && commit_v_i) && state_r == 3'b010 && state_n == 3'b010)
+      ,.down_i((pc_r == commit_pc_i && commit_v_i) && state_r == SEND && state_n == SEND)
       ,.count_r_o(stale_pfetch_r));
 
   always_ff @(posedge clk_i) begin
     if (reset_i) begin
-      state_r <= '0;
+      state_r <= WAIT;
+      dstate_r <= LATCH_OUTPUT;
       eff_addr_r_lo <= '0;
       eff_addr_r <= '0;
-      decr_count_r <= '0;
       stride_r <= '0;
-      dstate_r <= '0;
     end else begin
         case (state_r)
-          3'b000: begin
+          WAIT: begin
             stride_r <= stride_i;
             prev_block_r <= eff_addr_i[vaddr_width_p-1:offset_bits_lp];
             eff_addr_r <= eff_addr_i;
             pc_r <= pc_i;
           end
-          3'b011, 3'b001: begin
+          DELAY: begin
             prev_block_r <= prev_block_n;
             eff_addr_r <= eff_addr_n;
-            if (state_n == 3'b010) begin
-              decr_count_r <= 1'b1;
+          end
+          ITERATE: begin
+            prev_block_r <= prev_block_n;
+            eff_addr_r <= eff_addr_n;
+            if (state_n == SEND) begin
               eff_addr_r_lo <= eff_addr_n;
             end
           end
-          3'b010: begin
+          SEND: begin
             if (prev_block_r == prev_block_n) begin
               eff_addr_r <= eff_addr_n;
-              decr_count_r <= 1'b1;
-            end else begin
-              decr_count_r <= 1'b0;
             end
           end
         endcase
@@ -131,40 +149,42 @@ module bp_be_prefetch_generator
     delay_counter
       (.clk_i(clk_i)
       ,.reset_i(reset_i)
-      ,.set_i(state_r == 3'b000 & state_n == 3'b011)
+      ,.set_i(state_r == WAIT & state_n == DELAY)
       ,.val_i(delay_iters_init_li)
-      ,.down_i(state_r == 3'b011 & |delay_counter_r)
+      ,.down_i(state_r == DELAY & |delay_counter_r)
       ,.count_r_o(delay_counter_r)
       );
 
   // FSM
   always_comb begin
-    state_n = 3'b000;
+    state_n = WAIT;
     case(state_r)
       // wait
-      3'b000: begin
-        state_n = v_i && loop_counter_i != '0 & |stride_i ? 3'b011 : 3'b000;
+      WAIT: begin
+        state_n = v_i && loop_counter_i != '0 & |stride_i ? delay_iters_p ? DELAY : ITERATE : WAIT;
       end
       // Delay by several loop cycles to get ahead of execution
-      3'b011: state_n = |delay_counter_r ? 3'b011 : 3'b001;
+      DELAY: state_n = |delay_counter_r ? DELAY : |loop_counter_r ? ITERATE : WAIT;
       // latched prefetch info, iterate stride and loop count until next block
-      3'b001: begin
-        state_n = loop_counter_r == 1 && prev_block_r == prev_block_n ? 3'b000 : prev_block_r == prev_block_n ? 3'b001 : 3'b010;
+      ITERATE: begin
+        state_n = loop_counter_r == 1 && prev_block_r == prev_block_n ? WAIT : prev_block_r == prev_block_n ? ITERATE : SEND;
       end
       // Send prefetch
-      3'b010: begin
-        state_n = (yumi_i & dstate_r == 2'b00 & ~dcache_processing_miss_i) | &{~stale_pfetch_r} ? loop_counter_r == 3'b000 ? 3'b000 : 3'b001 : 3'b010;
+      SEND: begin
+        state_n = (yumi_i & dstate_r == LATCH_OUTPUT & ~dcache_processing_miss_i) | &{~stale_pfetch_r} ? loop_counter_r == WAIT ? WAIT : ITERATE : SEND;
       end
     endcase
   end
 
   // Delay FSM
+  // Dont issue another prefetch until we have seen the prefetch we just sent committed and the
+  // dcache is not processing a miss
   always_comb begin
-    dstate_n = '0;
+    dstate_n = LATCH_OUTPUT;
     case(dstate_r)
-      2'b00: dstate_n = v_o && yumi_i ? 2'b01 : 2'b00;
-      2'b01: dstate_n = pfetch_commit_v_i ? 2'b10 : 2'b01;
-      2'b10: dstate_n = dcache_processing_miss_i ? 2'b10 : 2'b00;
+      LATCH_OUTPUT: dstate_n = v_o && yumi_i            ? PFETCH_SEEN : LATCH_OUTPUT;
+      PFETCH_SEEN : dstate_n = pfetch_commit_v_i        ? WAIT_MISS   : PFETCH_SEEN;
+      WAIT_MISS   : dstate_n = dcache_processing_miss_i ? WAIT_MISS   : LATCH_OUTPUT;
     endcase
   end
 
@@ -187,21 +207,21 @@ module bp_be_prefetch_generator
       // Pulled from decode of load instruction
       decode.pipe_mem_early_v = 1'b1;
       decode.irf_w_v          = 1'b0;
-      decode.spec_w_v         = 1'b1;
-      decode.score_v          = 1'b0;
       decode.dcache_r_v       = 1'b1;
       decode.mem_v            = 1'b1;
-      decode.fu_op  = e_dcache_op_lb;
-      decode.prefetch         = 1'b1; // flag to prevent faults in MMU
-      decode.irs1_tag         = e_int_word;
+      decode.score_v          = 1'b0;
+      decode.spec_w_v         = 1'b1;
+      decode.prefetch         = 1'b1;
       decode.irs1_unsigned    = 1'b1;
+      decode.irs1_tag         = e_int_word;
+      decode.fu_op  = e_dcache_op_lb;
       decode.ird_tag          = e_int_word;
     end
 
   assign instr_o     = instr;
   assign decode_o    = decode;
   assign eff_addr_o  = eff_addr_r_lo;
-  assign ready_and_o = state_r == 3'b000;
-  assign v_o         = state_r == 3'b010 && dstate_r == 2'b00 && ~dcache_processing_miss_i;
+  assign ready_and_o = state_r == WAIT;
+  assign v_o         = state_r == SEND && dstate_r == LATCH_OUTPUT && ~dcache_processing_miss_i;
 
 endmodule
