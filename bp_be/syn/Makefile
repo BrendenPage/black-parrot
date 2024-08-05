@@ -11,11 +11,11 @@ export RESULTS_PATH := $(BP_BE_DIR)/syn/results
 export REPORT_PATH  := $(BP_BE_DIR)/syn/reports
 export TOUCH_PATH   := $(BP_BE_DIR)/syn/touchfiles
 
-export TB    ?= bp_be_checker
+export TB    ?= rpt
 export CFG   ?= e_bp_test_multicore_half_cfg
 export DRAM  ?= dramsim3
 export SUITE ?= none
-export PROG  ?= basic_prefetch_gen
+export PROG  ?= random_access_rpt
 export TAG   ?= none
 
 include $(TB_PATH)/$(TB)/Makefile.cfgs

@@ -35,8 +35,6 @@ VCS_BUILD_OPTS += -timescale=1ps/1ps  # Set timescale
 VCS_BUILD_OPTS += -diag timescale
 VCS_BUILD_OPTS += -CFLAGS "-I$(BP_TOOLS_DIR)/dromajo/include"
 VCS_BUILD_OPTS += -CFLAGS "-I$(BP_TOOLS_INSTALL_DIR)/include -std=c++17 -I $(BASEJUMP_STL_DIR)/bsg_test"
-$echo HEREHEREHEREHERE
-$echo BP_RTL_INSTALL_DIR
 VCS_BUILD_OPTS += -LDFLAGS "-L$(BP_RTL_INSTALL_DIR)/lib -ldramsim3 -Wl,-rpath=$(BP_RTL_INSTALL_DIR)/lib"
 VCS_BUILD_OPTS += +lint=TFIPC-L
 VCS_BUILD_OPTS += +plusarg_save

@@ -152,7 +152,7 @@ module bp_be_rpt
   wire [stride_width_p-1:0] stride_2 = r_data_lo[rpt_entry_width_lp + stride_width_p+rpt_ctr_width_lp : rpt_entry_width_lp + rpt_ctr_width_lp + 1];
 
   assign effective_addr_lo = |tag_match ? tag_match[0] ? effective_addr_1 : effective_addr_2 : '0;
-  wire [effective_addr_width_p-1:0] addr_diff = eff_addr_r - effective_addr_lo; // todo why eff addr i
+  wire [effective_addr_width_p-1:0] addr_diff = eff_addr_r - effective_addr_lo;
   assign stride_li = addr_diff[stride_width_p-1:0];
 
 
@@ -169,8 +169,8 @@ module bp_be_rpt
   wire lru_n = tag_match[0] ? 1'b1 : tag_match[1] ? 1'b0 : ~lru;
 
   // Compile data
-  assign w_data_1 = (&(~tag_match) & ~lru) | tag_match[0] ? {tag_li, eff_addr_r, stride_li, ctr_1_n} : r_data_lo[rpt_entry_width_lp:1]; // todo why eff addr i
-  assign w_data_2 = (&(~tag_match) & lru) | tag_match[1] ? {tag_li, eff_addr_r, stride_li, ctr_2_n} : r_data_lo[rpt_row_width_lp-1:rpt_entry_width_lp]; // todo why eff addr i
+  assign w_data_1 = (&(~tag_match) & ~lru) | tag_match[0] ? {tag_li, eff_addr_r, stride_li, ctr_1_n} : r_data_lo[rpt_entry_width_lp:1];
+  assign w_data_2 = (&(~tag_match) & lru) | tag_match[1] ? {tag_li, eff_addr_r, stride_li, ctr_2_n} : r_data_lo[rpt_row_width_lp-1:rpt_entry_width_lp + 1]; // todo: wrong length right side (+1)
   assign w_data_li = is_clear ? '0 : {w_data_2, w_data_1, lru_n};
 
 
@@ -191,11 +191,15 @@ module bp_be_rpt
 
   // Vector for each entry in RPT
   logic [rpt_sets_p*2-1:0] stride_vector_n, stride_vector_r, start_index;
+  logic [20:0] reddit;
   // output logic
   logic [stride_width_p-1:0] stride_r;
-  wire [rpt_sets_p*2-1:0] new_idx = (1 << ((idx_r << 1) ^ lru));
+  wire [rpt_sets_p*2-1:0] temp = ((idx_r << 1) ^ lru);
+  wire [rpt_sets_p*2-1:0] new_idx = 1 << temp;
+  // wire [rpt_sets_p*2-1:0] new_idx = (1 << ((idx_r << 1) ^ lru));
   assign stride_vector_n = stride_vector_r | new_idx;
   assign stride_o = stride_r;
+
   always_ff @(posedge clk_i) begin
     if (reset_i) begin
       stride_r <= '0;
@@ -205,6 +209,7 @@ module bp_be_rpt
       stride_v_o <= '0;
       confirm_discovery_o <= '0;
       eff_addr_o <= '0;
+      start_index <= '0;
     end
     confirm_discovery_o <= 1'b0;
     start_discovery_o <= 1'b0;
@@ -212,16 +217,17 @@ module bp_be_rpt
     if (mem_v_li & ((&ctr_1_n & tag_match[0] & |stride_1) | (&ctr_2_n & tag_match[1] & |stride_2))) begin
       stride_r <= tag_match[0] ? stride_1 : stride_2;
       stride_v_o <= 1'b1;
-      eff_addr_o <= eff_addr_i;
+      eff_addr_o <= eff_addr_r; // TODO: THIS CHANGED MAKE SURE
       pc_o <= pc_r;
       if (!stride_vector_r) begin
         // Start discovery, init stride vec
         start_discovery_o <= 1'b1;
+        start_index <= new_idx; // TODO: Check
         stride_vector_r <= stride_vector_n;
       end else begin
         // Check if we matched an index we've seen before
-        if (new_idx & stride_vector_r) begin
-          if (new_idx & ~start_index) begin
+        if (|(new_idx & stride_vector_r) & mem_v_li) begin
+          if (new_idx & ~start_index) begin // TODO: NEVER INIT START INDEX????
             // We have matched a secondary stride twice
             // restart discovery on new load, reinit vec
             start_discovery_o <= 1'b1;
@@ -241,7 +247,6 @@ module bp_be_rpt
       eff_addr_o <= '0;
       stride_v_o <= 1'b0;
       pc_o <= '0;
-      start_discovery_o <= 1'b0;
     end
   end
 

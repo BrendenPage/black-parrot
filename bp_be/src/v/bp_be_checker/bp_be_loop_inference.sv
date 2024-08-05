@@ -24,10 +24,6 @@ module bp_be_loop_inference
    (input                                            clk_i
    , input                                           reset_i
 
-  // Branch interface
-   , input  logic [effective_addr_width_p-1:0]       eff_addr_i
-   , input  logic [stride_width_p-1:0]               stride_i
-
    // dispatch instruction input for register snooping
    , input  logic [rv64_instr_width_gp-1:0]          preissue_instr_i
    , input  logic [register_width_p-1:0]             rs1_i
@@ -48,6 +44,8 @@ module bp_be_loop_inference
    , input  logic                                    start_discovery_i
    , input  logic                                    confirm_discovery_i
    , input  logic [vaddr_width_p-1:0]                striding_pc_i
+   , input  logic [effective_addr_width_p-1:0]       eff_addr_i
+   , input  logic [stride_width_p-1:0]               stride_i
   // output interface
    , output logic [output_range_p-1:0]               remaining_iteratons_o
    , output logic [vaddr_width_p-1:0]                pc_o

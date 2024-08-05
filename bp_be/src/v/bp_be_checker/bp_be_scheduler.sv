@@ -217,44 +217,6 @@ module bp_be_scheduler
   wire entered_main = expected_npc_i == 'h80000146;
   wire exit_main    = expected_npc_i == 'h800001c4;
 
-  bp_be_loop_inference
-   #(.bp_params_p(bp_params_p)
-    ,.output_range_p(output_range_lp)
-    ,.register_width_p($bits(bp_be_int_reg_s))
-    ,.effective_addr_width_p(vaddr_width_p)
-    ,.stride_width_p(stride_width_p))
-   loop_profiler
-    (.clk_i(clk_i)
-    ,.reset_i(reset_i)
-
-    ,.eff_addr_i(pref_addr_1_lo)
-    ,.stride_i(pref_stride_1_lo)
-
-    ,.preissue_instr_i(preissue_instr)
-    ,.rs1_i(irf_rs1)
-    ,.rs2_i(irf_rs2)
-    ,.preissue_npc_i(expected_npc_i)
-
-    ,.iwb_pkt_i(iwb_pkt_i)
-
-    ,.instr_i(commit_pkt_cast_i.instr)
-    ,.instr_v_i(commit_pkt_cast_i.queue_v)
-    ,.pc_i(commit_pkt_cast_i.pc)
-    ,.npc_i(commit_pkt_cast_i.npc)
-    ,.vaddr_i(commit_pkt_cast_i.vaddr)
-
-    ,.start_discovery_i(start_discovery_lo)
-    ,.confirm_discovery_i(confirm_discovery_lo)
-    ,.striding_pc_i(striding_pc_lo)
-
-    ,.remaining_iteratons_o(remaining_iteratons_lo)
-    ,.pc_o(pref_pc_lo)
-    ,.eff_addr_o(pref_addr_2_lo)
-    ,.stride_o(pref_stride_2_lo)
-    ,.yumi_i(pref_ready_and_lo)
-    ,.v_o(loop_v_lo)
-    );
-  
   bp_be_stride_detector
     #(.bp_params_p(bp_params_p)
       ,.stride_width_p(stride_width_p)
@@ -274,6 +236,43 @@ module bp_be_scheduler
     ,.striding_pc_o(striding_pc_lo)
     ,.eff_addr_o(pref_addr_1_lo)
     ,.stride_o(pref_stride_1_lo)
+    );
+
+  bp_be_loop_inference
+   #(.bp_params_p(bp_params_p)
+    ,.output_range_p(output_range_lp)
+    ,.register_width_p($bits(bp_be_int_reg_s))
+    ,.effective_addr_width_p(vaddr_width_p)
+    ,.stride_width_p(stride_width_p))
+   loop_profiler
+    (.clk_i(clk_i)
+    ,.reset_i(reset_i)
+
+    ,.preissue_instr_i(preissue_instr)
+    ,.rs1_i(irf_rs1)
+    ,.rs2_i(irf_rs2)
+    ,.preissue_npc_i(expected_npc_i)
+
+    ,.iwb_pkt_i(iwb_pkt_i)
+
+    ,.instr_i(commit_pkt_cast_i.instr)
+    ,.instr_v_i(commit_pkt_cast_i.queue_v)
+    ,.pc_i(commit_pkt_cast_i.pc)
+    ,.npc_i(commit_pkt_cast_i.npc)
+    ,.vaddr_i(commit_pkt_cast_i.vaddr)
+
+    ,.start_discovery_i(start_discovery_lo)
+    ,.confirm_discovery_i(confirm_discovery_lo)
+    ,.striding_pc_i(striding_pc_lo)
+    ,.eff_addr_i(pref_addr_1_lo)
+    ,.stride_i(pref_stride_1_lo)
+
+    ,.remaining_iteratons_o(remaining_iteratons_lo)
+    ,.pc_o(pref_pc_lo)
+    ,.eff_addr_o(pref_addr_2_lo)
+    ,.stride_o(pref_stride_2_lo)
+    ,.yumi_i(pref_ready_and_lo)
+    ,.v_o(loop_v_lo)
     );
 
   bp_be_prefetch_generator
