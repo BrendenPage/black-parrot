@@ -77,7 +77,7 @@ module bp_be_prefetch_generator
   wire blocks_match = prev_block_n == prev_block_r;
 
 
-  wire decr = (state_r != WAIT && prev_block_n == prev_block_r) || state_r == DELAY || (v_o & yumi_i) || (v_i & ready_and_o);
+  wire decr = (state_r != WAIT && blocks_match) || state_r == DELAY || (v_o & yumi_i) || (v_i & ready_and_o);
 
   bsg_counter_set_down
     #(.width_p(loop_range_p))
@@ -128,7 +128,7 @@ module bp_be_prefetch_generator
             end
           end
           SEND: begin
-            if (prev_block_r == prev_block_n) begin
+            if (blocks_match) begin
               eff_addr_r <= eff_addr_n;
             end
           end
@@ -167,7 +167,7 @@ module bp_be_prefetch_generator
       DELAY: state_n = |delay_counter_r ? DELAY : |loop_counter_r ? ITERATE : WAIT;
       // latched prefetch info, iterate stride and loop count until next block
       ITERATE: begin
-        state_n = loop_counter_r == 1 && prev_block_r == prev_block_n ? WAIT : prev_block_r == prev_block_n ? ITERATE : SEND;
+        state_n = loop_counter_r == 1 && blocks_match ? WAIT : blocks_match ? ITERATE : SEND;
       end
       // Send prefetch
       SEND: begin

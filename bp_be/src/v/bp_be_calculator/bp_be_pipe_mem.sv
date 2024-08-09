@@ -122,7 +122,6 @@ module bp_be_pipe_mem
 
   wire is_req = reservation.v & (decode.pipe_mem_early_v | decode.pipe_mem_final_v);
   wire [rv64_eaddr_width_gp-1:0] eaddr = rs1 + imm;
-  wire [rv64_eaddr_width_gp-`BSG_SAFE_CLOG2(512/8)-1:0] prev_block = eaddr[rv64_eaddr_width_gp-1:`BSG_SAFE_CLOG2(512/8)];
 
   logic early_v_r;
   bsg_dff_chain
@@ -133,13 +132,21 @@ module bp_be_pipe_mem
      ,.data_o(early_v_r)
      );
 
+  wire prefetch = is_req & decode.prefetch;
+  logic pfetch_v_r;
+  bsg_dff_chain
+   #(.width_p(1), .num_stages_p(2))
+   pfetch_chain
+    (.clk_i(negedge_clk)
+    ,.data_i(prefetch)
+    ,.data_o(pfetch_v_r));
+
   // D-TLB connections
   wire dtlb_r_store  = is_req & (decode.dcache_w_v | decode.dcache_cbo_v);
   wire dtlb_r_load   = is_req & decode.dcache_r_v;
   wire dtlb_r_cbo    = is_req & decode.dcache_cbo_v;
   wire dtlb_r_ptw    = is_req & decode.dcache_mmu_v;
   wire dtlb_r_v      = dtlb_r_store | dtlb_r_load | dtlb_r_cbo | dtlb_r_ptw;
-  wire prefetch = is_req & decode.prefetch;
 
   logic [vtag_width_p-1:0] dtlb_w_vtag;
   bp_pte_leaf_s dtlb_w_entry;
@@ -318,8 +325,8 @@ module bp_be_pipe_mem
      ,.data_o(early_v_o)
      );
 
-  assign cache_miss_v_o   = early_v_r & ~(dcache_v |  dcache_late) &  cache_req_yumi_i;
-  assign cache_replay_v_o = early_v_r & ~(dcache_v & ~dcache_late) & ~cache_req_yumi_i;
+  assign cache_miss_v_o   = early_v_r & ~(dcache_v |  dcache_late) &  cache_req_yumi_i & ~pfetch_v_r;
+  assign cache_replay_v_o = early_v_r & ~(dcache_v & ~dcache_late) & ~cache_req_yumi_i & ~pfetch_v_r;
 
   bp_be_int_reg_s dcache_idata;
   bp_be_int_box

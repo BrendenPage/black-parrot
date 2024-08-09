@@ -117,10 +117,15 @@ module bp_be_scheduler
   // Prioritization is:
   //   1/2) ptw_fill_pkt/writeback pkt, since there is no backpressure
   //   2) resume request
-  //   3) prefetch request
+  //   3) prefetch request (gives priority to waiting memory operations from FE queue)
   //   4) interrupt request
   //   5) finally, fe queue
-  logic pref_v;
+  logic pref_v, pref_v_lo;
+
+  wire is_mem_op = (issue_pkt_cast_o.instr_v & (issue_pkt_cast_o.decode.dcache_r_v | issue_pkt_cast_o.decode.dcache_w_v));
+
+  assign pref_v = pref_v_lo & ~is_mem_op;
+
   wire issue_queued = issue_pkt_cast_o.v & ~hazard_v_i;
 
   wire writeback_v =  late_wb_v_i & (late_wb_force_i | ~issue_queued);
@@ -207,7 +212,7 @@ module bp_be_scheduler
   logic start_discovery_lo, confirm_discovery_lo;
   logic [vaddr_width_p-1:0] striding_pc_lo, pref_pc_lo;
   logic loop_v_lo, pref_ready_and_lo;
-  logic [output_range_lp-1:0] remaining_iteratons_lo;
+  logic [output_range_lp-1:0] remaining_iterations_lo;
   logic [stride_width_p-1:0] pref_stride_1_lo, pref_stride_2_lo;
   logic [vaddr_width_p-1:0] pref_addr_1_lo, pref_addr_2_lo, pref_addr_3_lo;
   wire  [vaddr_width_p-1:0] pref_addr = pref_addr_3_lo;
@@ -267,7 +272,7 @@ module bp_be_scheduler
     ,.eff_addr_i(pref_addr_1_lo)
     ,.stride_i(pref_stride_1_lo)
 
-    ,.remaining_iteratons_o(remaining_iteratons_lo)
+    ,.remaining_iterations_o(remaining_iterations_lo)
     ,.pc_o(pref_pc_lo)
     ,.eff_addr_o(pref_addr_2_lo)
     ,.stride_o(pref_stride_2_lo)
@@ -286,14 +291,14 @@ module bp_be_scheduler
     ,.pc_i(pref_pc_lo)
     ,.commit_v_i(commit_pkt_cast_i.queue_v)
     ,.commit_pc_i(commit_pkt_cast_i.pc)
-    ,.loop_counter_i(remaining_iteratons_lo)
+    ,.loop_counter_i(remaining_iterations_lo)
     ,.eff_addr_i(pref_addr_2_lo)
     ,.stride_i(pref_stride_2_lo)
 
     ,.v_i(loop_v_lo)
     ,.ready_and_o(pref_ready_and_lo)
-    ,.yumi_i(~(writeback_v | resume_v | ptw_v_lo))
-    ,.v_o(pref_v)
+    ,.yumi_i(~(writeback_v | resume_v | ptw_v_lo | is_mem_op))
+    ,.v_o(pref_v_lo)
     ,.instr_o(pref_instr_lo)
     ,.decode_o(pref_decode_lo)
     ,.eff_addr_o(pref_addr_3_lo)

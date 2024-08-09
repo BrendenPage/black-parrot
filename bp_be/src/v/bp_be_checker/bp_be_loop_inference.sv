@@ -16,7 +16,7 @@ module bp_be_loop_inference
    , parameter output_range_p = 8 // width of output amount
    , parameter effective_addr_width_p = vaddr_width_p
    , parameter stride_width_p = 8
-   , parameter discovery_misses_p = 4'd8
+   , parameter discovery_misses_p = 4'd4
    , parameter register_width_p = dpath_width_gp
    , localparam default_loop_size_lp = 128
    , localparam wb_pkt_width_lp = `bp_be_wb_pkt_width(vaddr_width_p)
@@ -47,7 +47,7 @@ module bp_be_loop_inference
    , input  logic [effective_addr_width_p-1:0]       eff_addr_i
    , input  logic [stride_width_p-1:0]               stride_i
   // output interface
-   , output logic [output_range_p-1:0]               remaining_iteratons_o
+   , output logic [output_range_p-1:0]               remaining_iterations_o
    , output logic [vaddr_width_p-1:0]                pc_o
    , output logic [effective_addr_width_p-1:0]       eff_addr_o
    , output logic [stride_width_p-1:0]               stride_o
@@ -77,7 +77,7 @@ module bp_be_loop_inference
   logic swap_ops, swap_ops_r, swap_ops_n;
 
   // output value
-  logic [output_range_p-1:0] remaining_iteratons_n;
+  logic [output_range_p-1:0] remaining_iterations_n;
 
   // final branch op register holds if branch op for the final scouted branch instruction
   logic branch_op_v;
@@ -97,7 +97,7 @@ module bp_be_loop_inference
       ,.reset_i(reset_i)
       ,.set_i(state_r == 3'b001 && state_n == 3'b010)
       ,.val_i(discovery_misses_p)
-      ,.down_i(start_discovery_i & state_r == 3'b010 & striding_pc_i != striding_pc_r)
+      ,.down_i(confirm_discovery_i & confirm_discovery_r & state_r == 3'b010 & striding_pc_i != striding_pc_r)
       ,.count_r_o(skips_remaining)
       );
 
@@ -125,7 +125,7 @@ module bp_be_loop_inference
   wire [register_width_p-1:0] denom_n  = $clog2(magnitude);
 
 
-  assign remaining_iteratons_n = unable_to_determine_r ? default_loop_size_lp : rdist_r >> denom_r;
+  assign remaining_iterations_n = unable_to_determine_r ? default_loop_size_lp : rdist_r >> denom_r;
   assign v_o = state_r == 3'b111;
 
   always_ff @(posedge clk_i) begin
@@ -136,7 +136,7 @@ module bp_be_loop_inference
       branch_pc_r <= '0;
       swap_ops_r <= '0;
       confirm_discovery_r <= '0;
-      remaining_iteratons_o <= '0;
+      remaining_iterations_o <= '0;
       eff_addr_r <= '0;
       stride_r <= '0;
       unable_to_determine_r <= '0;
@@ -168,7 +168,14 @@ module bp_be_loop_inference
           rdist_r <= rdist_n;
         end
         if (state_r == 3'b101) begin
-          remaining_iteratons_o <= remaining_iteratons_n > default_loop_size_lp ? default_loop_size_lp : remaining_iteratons_n;
+          remaining_iterations_o <= remaining_iterations_n > default_loop_size_lp ? default_loop_size_lp : remaining_iterations_n;
+        end
+        if (state_r == 3'b111) begin
+          // Reduce remaining iterations if we are in the wait state and we loop again
+          if (pc_i == branch_pc_r) begin
+            remaining_iterations_o <= remaining_iterations_o - 1;
+            eff_addr_r <= eff_addr_r + stride_r;
+          end
         end
       state_r <= state_n;
       unable_to_determine_r <= unable_to_determine_n;
@@ -320,7 +327,7 @@ module bp_be_loop_inference
         // Wait to confirm discovery
           state_n = confirm_discovery_n | confirm_discovery_r ? 3'b111 : 3'b110;
       3'b111:
-          if (yumi_i) begin
+          if (yumi_i || remaining_iterations_o == 2) begin
             state_n = 3'b000;
           end else begin
             state_n = 3'b111;
