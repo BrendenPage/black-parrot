@@ -30,7 +30,6 @@ module bp_be_scheduler
    , localparam wb_pkt_width_lp = `bp_be_wb_pkt_width(vaddr_width_p)
    , localparam output_range_lp = 8
    , localparam stride_width_p  = 24
-   , localparam prefetching_enabled_p = 1'b1
    )
   (input                                      clk_i
    , input                                    reset_i
@@ -232,7 +231,7 @@ module bp_be_scheduler
     ,.reset_i(reset_i)
 
     ,.instr_i(commit_pkt_cast_i.instr)
-    ,.instr_v_i(commit_pkt_cast_i.queue_v & prefetching_enabled_p)
+    ,.instr_v_i(commit_pkt_cast_i.queue_v & (|prefetch_enabled))
     ,.eff_addr_i(commit_pkt_cast_i.vaddr)
 
     ,.pc_i(commit_pkt_cast_i.pc)

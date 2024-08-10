@@ -260,6 +260,8 @@
     // Maximum credits supported by the network. Correlated to the bandwidth delay product
     integer unsigned dma_noc_max_credits;
 
+    integer unsigned prefetch_enabled;
+
   }  bp_proc_param_s;
 
   localparam bp_proc_param_s bp_default_cfg_p =
@@ -371,6 +373,7 @@
       ,dma_noc_cid_width     : 3
       ,dma_noc_len_width     : 4
       ,dma_noc_max_credits   : 32
+      ,prefetch_enabled      : 0
       };
 
   // BP_CUSTOM_DEFINES_PATH can be set to a file which has the custom defines below set
@@ -478,6 +481,7 @@
       ,`bp_aviary_define_override(dma_noc_flit_width, BP_MEM_NOC_FLIT_WIDTH, `BP_CUSTOM_BASE_CFG)
       ,`bp_aviary_define_override(dma_noc_cid_width, BP_MEM_NOC_CID_WIDTH, `BP_CUSTOM_BASE_CFG)
       ,`bp_aviary_define_override(dma_noc_len_width, BP_MEM_NOC_LEN_WIDTH, `BP_CUSTOM_BASE_CFG)
+      ,`bp_aviary_define_override(prefetch_enabled, PREFETCH_ENABLED, `BP_CUSTOM_BASE_CFG)
       };
 
 `endif

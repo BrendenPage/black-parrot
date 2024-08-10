@@ -185,7 +185,8 @@
     , localparam dcache_tag_width_p = caddr_width_p -                                              \
         (`BSG_SAFE_CLOG2(dcache_sets_p*dcache_block_width_p/8))                                    \
     , localparam acache_tag_width_p = caddr_width_p -                                              \
-        (`BSG_SAFE_CLOG2(acache_sets_p*acache_block_width_p/8))
+        (`BSG_SAFE_CLOG2(acache_sets_p*acache_block_width_p/8))                                    \
+    , localparam prefetch_enabled = proc_param_lp.prefetch_enabled
 
     `define bp_aviary_parameter_override(parameter_mp, override_cfg_mp, default_cfg_mp) \
       parameter_mp: (override_cfg_mp.``parameter_mp`` == "inv") \
@@ -295,6 +296,7 @@
           ,`bp_aviary_parameter_override(dma_noc_flit_width, override_cfg_mp, default_cfg_mp)      \
           ,`bp_aviary_parameter_override(dma_noc_cid_width, override_cfg_mp, default_cfg_mp)       \
           ,`bp_aviary_parameter_override(dma_noc_len_width, override_cfg_mp, default_cfg_mp)       \
+          ,`bp_aviary_parameter_override(prefetch_enabled, override_cfg_mp, default_cfg_mp)        \
           }
 
 `endif
