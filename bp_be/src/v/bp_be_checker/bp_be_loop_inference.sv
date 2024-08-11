@@ -83,7 +83,7 @@ module bp_be_loop_inference
   logic branch_op_v;
 
   // Registers to store the denominator and distance values for output calculation
-  logic [register_width_p-1:0] denom_r, rdist_r;
+  logic [register_width_p-1:0] denom_r, denom_n, rdist_r;
 
   logic [vaddr_width_p-1:0] taken_tgt;
 
@@ -122,7 +122,16 @@ module bp_be_loop_inference
   wire [register_width_p-1:0] rdist_n = signed_rdist[register_width_p-1] ? (~signed_rdist) + 1 : signed_rdist;
   wire [register_width_p-1:0] stride  = | r1d ? r1d : r2d;
   wire [register_width_p-1:0] magnitude = stride[register_width_p-1] ? (~stride) + 1 : stride;
-  wire [register_width_p-1:0] denom_n  = $clog2(magnitude);
+  logic [register_width_p-1:0] num_leading_zero_lo;
+  // log_2 by counting how many places until we hit most significant bit
+  bsg_counting_leading_zeros
+    #(.width_p(register_width_p)
+     ,.num_zero_width_lp(register_width_p))
+    log_2
+      (.a_i(magnitude)
+      ,.num_zero_o(num_leading_zero_lo));
+
+  logic [register_width_p-1:0] denom_n  = register_width_p - num_leading_zero_lo;
 
 
   assign remaining_iterations_n = unable_to_determine_r ? default_loop_size_lp : rdist_r >> denom_r;
