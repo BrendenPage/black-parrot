@@ -16,7 +16,7 @@ module bp_be_loop_inference
    , parameter output_range_p = 8 // width of output amount
    , parameter effective_addr_width_p = vaddr_width_p
    , parameter stride_width_p = 8
-   , parameter discovery_misses_p = 4
+   , parameter discovery_misses_p = 5
    , parameter register_width_p = dpath_width_gp
    , localparam default_loop_size_lp = 128
    , localparam wb_pkt_width_lp = `bp_be_wb_pkt_width(vaddr_width_p)
@@ -98,7 +98,7 @@ module bp_be_loop_inference
       ,.reset_i(reset_i)
       ,.set_i(set)
       ,.val_i(discovery_misses_p[`BSG_WIDTH(discovery_misses_p)-1:0])
-      ,.down_i(confirm_discovery_i & confirm_discovery_r & state_r == 3'b010 & striding_pc_i != striding_pc_r)
+      ,.down_i(confirm_discovery_i & state_r == 3'b010 & striding_pc_i != striding_pc_r)
       ,.count_r_o(skips_remaining)
       );
 
