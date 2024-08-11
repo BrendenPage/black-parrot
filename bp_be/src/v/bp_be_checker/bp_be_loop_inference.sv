@@ -88,6 +88,7 @@ module bp_be_loop_inference
   logic [vaddr_width_p-1:0] taken_tgt;
 
   logic [2:0] state_n, state_r;
+  logic set;
 
   logic [`BSG_WIDTH(discovery_misses_p)-1:0] skips_remaining;
   bsg_counter_set_down
@@ -95,8 +96,8 @@ module bp_be_loop_inference
     discovery_cooldown
       (.clk_i(clk_i)
       ,.reset_i(reset_i)
-      ,.set_i(state_r == 3'b001 && state_n == 3'b010)
-      ,.val_i(discovery_misses_p[`BSG_WIDTH(discovery_misses_p+1)-1:0])
+      ,.set_i(set)
+      ,.val_i(discovery_misses_p[`BSG_WIDTH(discovery_misses_p)-1:0])
       ,.down_i(confirm_discovery_i & confirm_discovery_r & state_r == 3'b010 & striding_pc_i != striding_pc_r)
       ,.count_r_o(skips_remaining)
       );
@@ -307,6 +308,7 @@ module bp_be_loop_inference
     branch_pc_n = '0;
     swap_ops_n = swap_ops_r;
     snoop_regs_n = 1'b0;
+    set = 1'b0;
     case(state_r)
       3'b000:
         // Waiting to enter discovery mode
@@ -318,6 +320,7 @@ module bp_be_loop_inference
           swap_ops_n = swap_ops;
           branch_pc_n = pc_i;
           snoop_regs_n = 1'b1;
+          set = 1'b1;
         end else state_n = 3'b001;
       3'b010: begin
         // find the registers associated with the branch instruction
