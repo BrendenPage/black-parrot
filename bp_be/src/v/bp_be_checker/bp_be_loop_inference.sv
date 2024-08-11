@@ -16,7 +16,7 @@ module bp_be_loop_inference
    , parameter output_range_p = 8 // width of output amount
    , parameter effective_addr_width_p = vaddr_width_p
    , parameter stride_width_p = 8
-   , parameter discovery_misses_p = 4'd4
+   , parameter discovery_misses_p = 4
    , parameter register_width_p = dpath_width_gp
    , localparam default_loop_size_lp = 128
    , localparam wb_pkt_width_lp = `bp_be_wb_pkt_width(vaddr_width_p)
@@ -89,14 +89,14 @@ module bp_be_loop_inference
 
   logic [2:0] state_n, state_r;
 
-  logic [`BSG_SAFE_CLOG2(discovery_misses_p + 1)-1:0] skips_remaining;
+  logic [`BSG_WIDTH(discovery_misses_p)-1:0] skips_remaining;
   bsg_counter_set_down
-    #(.width_p(`BSG_SAFE_CLOG2(discovery_misses_p + 1)))
+    #(.width_p(`BSG_WIDTH(discovery_misses_p)))
     discovery_cooldown
       (.clk_i(clk_i)
       ,.reset_i(reset_i)
       ,.set_i(state_r == 3'b001 && state_n == 3'b010)
-      ,.val_i(discovery_misses_p)
+      ,.val_i(discovery_misses_p[`BSG_WIDTH(discovery_misses_p+1)-1:0])
       ,.down_i(confirm_discovery_i & confirm_discovery_r & state_r == 3'b010 & striding_pc_i != striding_pc_r)
       ,.count_r_o(skips_remaining)
       );
@@ -122,16 +122,15 @@ module bp_be_loop_inference
   wire [register_width_p-1:0] rdist_n = signed_rdist[register_width_p-1] ? (~signed_rdist) + 1 : signed_rdist;
   wire [register_width_p-1:0] stride  = | r1d ? r1d : r2d;
   wire [register_width_p-1:0] magnitude = stride[register_width_p-1] ? (~stride) + 1 : stride;
-  logic [register_width_p-1:0] num_leading_zero_lo;
+  logic [`BSG_WIDTH(register_width_p)-1:0] num_leading_zero_lo;
   // log_2 by counting how many places until we hit most significant bit
   bsg_counting_leading_zeros
-    #(.width_p(register_width_p)
-     ,.num_zero_width_lp(register_width_p))
+    #(.width_p(register_width_p))
     log_2
       (.a_i(magnitude)
       ,.num_zero_o(num_leading_zero_lo));
 
-  logic [register_width_p-1:0] denom_n  = register_width_p - num_leading_zero_lo;
+  assign denom_n  = register_width_p - num_leading_zero_lo;
 
 
   assign remaining_iterations_n = unable_to_determine_r ? default_loop_size_lp : rdist_r >> denom_r;
