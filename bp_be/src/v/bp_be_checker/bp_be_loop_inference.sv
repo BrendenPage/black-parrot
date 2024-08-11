@@ -312,12 +312,12 @@ module bp_be_loop_inference
         rstate_n = preissue_npc_i == branch_pc_r && snoop_regs_r ? 2'b01 : 2'b00;
       2'b01: begin
         init_br_n = init_br_r ? 1'b1 : pc_i == branch_pc_r;
-        rstate_n = state_n == 3'b000 ? 2'b00 : pc_i == branch_pc_r & init_br_r ? 2'b10 : 2'b01;
+        rstate_n = skips_remaining == 0 ? 2'b00 : pc_i == branch_pc_r & init_br_r ? 2'b10 : 2'b01;
       end
       // snoop writeback commit packets into registers until we see the branch instruction committed, update the initial values with any register values found.
       // set "valid" on instruction committed is the second time we see the branch.
       2'b10:
-        rstate_n = state_n == 3'b000 ? 2'b00 : pc_i == branch_pc_r ? 2'b00 : 2'b10;
+        rstate_n = skips_remaining == 0 ? 2'b00 : pc_i == branch_pc_r ? 2'b00 : 2'b10;
       // wait for second branch instruction to be seen
     endcase
   end
@@ -345,7 +345,7 @@ module bp_be_loop_inference
       3'b010: begin
         // find the registers associated with the branch instruction
         snoop_regs_n = 1'b1;
-        state_n = skips_remaining == 0 ? 3'b000 : (rstate_r == 2'b10 && rstate_n == 2'b00) ? 3'b100 : 3'b010;
+        state_n = skips_remaining == 0 ? 3'b000 : (rstate_r == 2'b10 && pc_i == branch_pc_r) ? 3'b100 : 3'b010;
       end
 
       3'b100:
