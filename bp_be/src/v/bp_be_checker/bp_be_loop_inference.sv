@@ -115,7 +115,7 @@ module bp_be_loop_inference
   always_comb begin
 	    ctr_n = ctr_r;
 	    if (set)
-        ctr_n = val_i;
+        ctr_n = discovery_misses_p[`BSG_WIDTH(discovery_misses_p)-1:0];
 	    else if (confirm_discovery_i & state_r == 3'b010 & striding_pc_i != striding_pc_r)
 		    ctr_n = ctr_n - 1;
   end
