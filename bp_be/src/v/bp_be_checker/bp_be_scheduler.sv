@@ -219,8 +219,6 @@ module bp_be_scheduler
   bp_be_dispatch_pkt_s pref_dispatch_pkt;
   bp_be_decode_s pref_decode_lo;
   rv64_instr_stype_s pref_instr_lo;
-  wire entered_main = expected_npc_i == 'h80000146;
-  wire exit_main    = expected_npc_i == 'h800001c4;
 
   bp_be_stride_detector
     #(.bp_params_p(bp_params_p)
@@ -376,7 +374,32 @@ module bp_be_scheduler
       dispatch_pkt_cast_o.special.csrw            |= fe_instr_not_exc_li & issue_pkt_cast_o.csrw;
     end
 
+   logic first_instruction;
+   always_ff @(posedge clk_i) begin
+      if (reset_i)
+         first_instruction <= '0;
+      else
+         first_instruction <= first_instruction | commit_pkt_cast_i.queue_v;
+   end
 
+   logic [63:0] clk_count, last_instruction;
+   bsg_cycle_counter
+    #(.width_p(64))
+    clk_counter
+      (.clk_i(clk_i)
+      ,.reset_i(reset_i | ~first_instruction)
+      ,.ctr_r_o(clk_count));
+  
+  logic [63:0] stalled_cycles;
+  always_ff @(posedge clk_i) begin
+    if (reset_i) begin
+      stalled_cycles <= '0;
+      last_instruction <= '0;
+    end else begin
+      stalled_cycles <= hazard_v_i ? stalled_cycles + 1 : stalled_cycles;
+      last_instruction <= commit_pkt_cast_i.queue_v ? clk_count : last_instruction;
+    end
+  end
 
 endmodule
 

@@ -397,5 +397,33 @@ module bp_be_pipe_mem
                                 ,default : '0
                                 };
 
+   logic delay;
+   logic [31:0] non_prefetch_misses;
+   always_ff @(posedge clk_i) begin
+      if (reset_i) begin
+         non_prefetch_misses <= '0;
+         delay <= '0;
+      end else begin
+         if ((cache_miss_v_o) ^ delay) begin
+            non_prefetch_misses <= non_prefetch_misses + 1;
+         end
+         delay <= cache_miss_v_o & ~prefetch;
+      end
+   end
+
+   logic delay_t;
+   logic [31:0] total_misses;
+   always_ff @(posedge clk_i) begin
+      if (reset_i) begin
+         total_misses <= '0;
+         delay_t <= '0;
+      end else begin
+         if ((early_v_r & ~(dcache_v |  dcache_late) &  cache_req_yumi_i) ^ delay_t) begin
+            total_misses <= total_misses + 1;
+         end
+         delay_t <= early_v_r & ~(dcache_v |  dcache_late) &  cache_req_yumi_i;
+      end
+   end
+
 endmodule
 
