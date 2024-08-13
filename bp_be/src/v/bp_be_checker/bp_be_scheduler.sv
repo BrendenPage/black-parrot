@@ -390,14 +390,19 @@ module bp_be_scheduler
       ,.reset_i(reset_i | ~first_instruction)
       ,.ctr_r_o(clk_count));
   
-  logic [63:0] stalled_cycles;
+  logic [63:0] stalled_cycles, stalled_cycles_cumulative;
+  logic [commit_pkt_width_lp-1:0] commit_pkt_r;
   always_ff @(posedge clk_i) begin
     if (reset_i) begin
       stalled_cycles <= '0;
       last_instruction <= '0;
+      commit_pkt_r <= '0;
+      stalled_cycles_cumulative <= '0;
     end else begin
+      commit_pkt_r <= commit_pkt_i;
       stalled_cycles <= hazard_v_i ? stalled_cycles + 1 : stalled_cycles;
-      last_instruction <= commit_pkt_cast_i.queue_v ? clk_count : last_instruction;
+      last_instruction <= commit_pkt_cast_i.queue_v && commit_pkt_r != commit_pkt_i ? clk_count : last_instruction;
+      stalled_cycles_cumulative <= commit_pkt_r != commit_pkt_i ? stalled_cycles : stalled_cycles_cumulative;
     end
   end
 

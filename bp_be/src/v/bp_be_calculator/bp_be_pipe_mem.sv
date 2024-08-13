@@ -404,10 +404,10 @@ module bp_be_pipe_mem
          non_prefetch_misses <= '0;
          delay <= '0;
       end else begin
-         if ((cache_miss_v_o) ^ delay) begin
+         if ((early_v_r & ~(dcache_v |  dcache_late) &  cache_req_yumi_i & ~pfetch_v_r) ^ delay) begin
             non_prefetch_misses <= non_prefetch_misses + 1;
          end
-         delay <= cache_miss_v_o & ~prefetch;
+         delay <= early_v_r & ~(dcache_v |  dcache_late) &  cache_req_yumi_i & ~pfetch_v_r;
       end
    end
 
